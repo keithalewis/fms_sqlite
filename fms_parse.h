@@ -1,5 +1,7 @@
 // fms_parse.h
 #pragma once
+#include <climits>
+#include <cmath>
 #include <ctype.h>
 #include <ctime>
 #include <limits>
@@ -10,9 +12,23 @@ namespace fms {
 	// len < 0 is error
 	template<class T>
 	struct view {
+		static T length(const T* t, int len = 0)
+		{
+			while (t and *t++) {
+				++len;
+			}
+
+			return len;
+		}
 		T* buf;
 		int len;
-		view(T* buf = nullptr, int len = 0)
+		view()
+			: buf{ nullptr }, len{ 0 }
+		{ }
+		view(T* buf)
+			: view(buf, length(buf))
+		{ }
+		view(T* buf, int len)
 			: buf(buf), len(len)
 		{ }
 		template<size_t N>
@@ -312,6 +328,11 @@ namespace fms {
 	template<class T>
 	inline bool parse_tm(fms::view<T>& v, tm* ptm)
 	{
+		// dddd-d-d shortest valid data
+		if (v.len < 8) {
+			return false;
+		}
+
 		ptm->tm_isdst = -1;
 		ptm->tm_hour = 0;
 		ptm->tm_min = 0;

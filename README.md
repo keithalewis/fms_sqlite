@@ -2,7 +2,7 @@
 
 C++ wrapper for the sqlite C API.
 
-## Type
+## Typing
 
 Sqlite has [flexible typing](https://www3.sqlite.org/flextypegood.html).  
 It uses 64-bit signed integers, 64-bit IEEE floating point values, character strings, 
@@ -23,20 +23,25 @@ The function `sqlite3_column_decltype` returns the character string used
 and `int sqlite::stmt::sqltype(int i)` returns the **extended sqlite type**
 based on string used when creating a table.
 
-The extended types `SQLITE_BOOLEAN` and `SQLITE_DATETIME` are defined 
-in the `fms_sqlite.h` header to preserve Excel and JSON/BSON fidelity.
+The extended types `SQLITE_BOOLEAN` and 
+[`SQLITE_DATETIME`](https://www.sqlite.org/lang_datefunc.html) are defined 
+in `fms_sqlite.h` to preserve Excel and JSON/BSON fidelity.
 Excel does not have a datetime type, JSON has neither, and BSON has both.
 A sqlite boolean is stored as an integer. The datetime type is a union
 that can contain a floating point Gegorian date, integer `time_t` seconds
 since Unix epoch, or an ISO 8601 format string.
 
+## `iterable`
+
+An `iterable` allows iteration over rows in the result of a query.
+
 ```
 stmt.prepare("SELECT * from table");
-iterator iter(stmt);
-while(i) {
-	const stmt& row = *i;
-	*r = *row;
-	++i;
+iterable rows(stmt);
+while(rows) {
+	const stmt& row = *rows;
+	// use row...
+	++rows;
 }
 ```
 

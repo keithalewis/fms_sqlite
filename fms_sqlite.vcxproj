@@ -135,11 +135,11 @@
     <ClCompile Include="fms_sqlite.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\fms_parse.h" />
-    <ClInclude Include="..\fms_sqlite.h" />
+    <ClInclude Include="fms_parse.h" />
+    <ClInclude Include="fms_sqlite.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\xlladdins\xll_mongo\xll_sqlite\README.md" />
+    <None Include="README.md" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

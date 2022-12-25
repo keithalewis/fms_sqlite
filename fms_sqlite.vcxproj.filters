@@ -23,14 +23,14 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\fms_sqlite.h">
+    <ClInclude Include="fms_parse.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fms_parse.h">
+    <ClInclude Include="fms_sqlite.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\xlladdins\xll_mongo\xll_sqlite\README.md" />
+    <None Include="README.md" />
   </ItemGroup>
 </Project>
