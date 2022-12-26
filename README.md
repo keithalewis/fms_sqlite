@@ -97,7 +97,7 @@ by compiling the sql statement it is given. This is relatively expensive.
 Any parameters in the statement can be bound using `stmt::bind`.
 this is relatively inexpensive.
 The results of the query are returned row-by-row using
-(`sqlite3_step`)[https://www3.sqlite.org/c3ref/step.html].
+[`sqlite3_step`](https://www3.sqlite.org/c3ref/step.html).
 
 ```
 sqlite::db db(""); // create an in-memory database
@@ -116,15 +116,15 @@ stmt.step(); // insert values
 
 stmt.reset();
 stmt.prepare("SELECT * from t");
-while (SQLITE_ROW == stmt.step()) {
-	std::cout << sqlite3_column_int(stmt, 0) << " "; // column is 0-based
-	std::cout << sqlite3_column_double(stmt, 1) << " "; 
-	std::cout << sqlite3_column_text(stmt, 2) << "\n"; 
+int ret = stmt.step();
+while (SQLITE_ROW == ret) {
+	assert(123 == sqlite3_column_int(stmt, 0)); // 0-based
+	assert(1.23 == sqlite3_column_double(stmt, 1));
+	// sqlite3_column_text returns const unsigned char*
+	assert(0 == strcmp("text", (const char*)sqlite3_column_text(stmt, 2)));
+
+	ret = stmt.step();
 }
-```
-Expected output
-```
-123 1.23 text
 ```
 
 Note we first iterate over rows, then iterate over columns.
@@ -141,9 +141,10 @@ An iterable can iterate over the indeterminite number of rows returned by a stat
 stmt.reset();
 stmt.iterable i(stmt);
 while (i) {
-	std::cout << sqlite3_column_int(stmt, 0) << " "; // column is 0-based
-	std::cout << sqlite3_column_double(stmt, 1) << " "; 
-	std::cout << sqlite3_column_text(stmt, 2) << "\n";
+	assert(123 == sqlite3_column_int(stmt, 0)); // 0-based
+	assert(1.23 == sqlite3_column_double(stmt, 1));
+	assert(0 == strcmp("text", (const char*)sqlite3_column_text(stmt, 2)));
+
 	++i;
 }
 ```
@@ -160,13 +161,14 @@ stmt.reset();
 stmt::iterable i(stmt);
 
 while (i) {
-	auto j = stmt::iterator(*i);
+	auto j = *i;
 
-	std::cout << (*j).as<int>() << " ";
+	assert(123 == (*j).as<int>());
 	++j;
-	std::cout << (*j).as<double>() << " ";
+	assert(1.23 == (*j).as<double>());
 	++j;
-	std::cout << (*j).as<std::string_view>() << "\n";
+	assert((*j).as<std::string_view>() == "text");
+	++j;
 
 	++i;
 }
@@ -176,7 +178,26 @@ while (i) {
 
 A `stmt::iterator::operator*()` returns a `sqlite::value`.
 It is not a value type like `std::variant`. It holds
-an opaqure pointer to a `sqlite3_value*` and a column index to represent the value
+an opaque pointer to a `sqlite3_value*` and a column index to represent the value
 of the statement row at that index. It provides 
 `template<T> T as()` member functions to extract values of type `T`,
-as illustrated above.
+as illustrated above. It also provides `operator==(const T&)`
+for known types.
+```
+stmt.reset();
+stmt::iterable i(stmt);
+while (i) {
+	auto j = *i;
+
+	assert(*j == 123);
+	++j;
+	assert(*j == 1.23);
+	++j;
+	assert(*j == "text");
+	++j;
+	assert(!j); // iterable
+	assert(j == j.end()); // STL iterator
+	
+	++i;
+}
+```

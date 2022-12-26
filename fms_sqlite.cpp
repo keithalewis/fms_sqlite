@@ -238,19 +238,22 @@ void example()
 	{
 		stmt.reset();
 		stmt.prepare("SELECT * from t");
-		while (SQLITE_ROW == stmt.step()) {
-			std::cout << sqlite3_column_int(stmt, 0) << " "; // 0-based
-			std::cout << sqlite3_column_double(stmt, 1) << " ";
-			std::cout << sqlite3_column_text(stmt, 2) << "\n---\n";
+		int ret = stmt.step();
+		while (SQLITE_ROW == ret) {
+			assert(123 == sqlite3_column_int(stmt, 0)); // 0-based
+			assert(1.23 == sqlite3_column_double(stmt, 1));
+			assert(0 == strcmp("text", (const char*)sqlite3_column_text(stmt, 2)));
+			ret = stmt.step();
 		}
+		assert(SQLITE_DONE == ret);
 	}
 	{
 		stmt.reset();
 		stmt::iterable i(stmt);
 		while (i) {
-			std::cout << sqlite3_column_int(stmt, 0) << " "; // 0-based
-			std::cout << sqlite3_column_double(stmt, 1) << " ";
-			std::cout << sqlite3_column_text(stmt, 2) << "\n---\n";
+			assert(123 == sqlite3_column_int(stmt, 0)); // 0-based
+			assert(1.23 == sqlite3_column_double(stmt, 1));
+			assert(0 == strcmp("text", (const char*)sqlite3_column_text(stmt, 2)));
 			++i;
 		}
 	}
@@ -259,11 +262,30 @@ void example()
 		stmt::iterable i(stmt);
 		while (i) {
 			auto j = *i;
-			std::cout << (*j).as<int>() << " "; // 0-based
+			assert(123 == (*j).as<int>());
 			++j;
-			std::cout << (*j).as<double>() << " ";
+			assert(1.23 == (*j).as<double>());
 			++j;
-			std::cout << (*j).as<std::string_view>() << "\n---\n";
+			assert((*j).as<std::string_view>() == "text");
+			++j;
+			assert(!j);
+			assert(j == j.end());
+			++i;
+		}
+	}
+	{
+		stmt.reset();
+		stmt::iterable i(stmt);
+		while (i) {
+			auto j = *i;
+			assert(*j == 123);
+			++j;
+			assert(*j == 1.23);
+			++j;
+			assert(*j == "text");
+			++j;
+			assert(!j);
+			assert(j == j.end());
 			++i;
 		}
 	}
