@@ -669,7 +669,7 @@ namespace sqlite {
 			return *this;
 		}
 
-		// datetime
+		// bind underlying datetime type
 		stmt& bind(int i, const datetime& dt)
 		{
 			switch (dt.type) {
@@ -699,14 +699,43 @@ namespace sqlite {
 		// 
 
 		// number of columns returned
+
 		int column_count() const
 		{
 			return sqlite3_column_count(pstmt);
+		}
+		const char* column_name(int i) const
+		{
+			return sqlite3_column_name(pstmt, i);
 		}
 
 		sqlite::value value(int i) const
 		{
 			return sqlite::value(pstmt, i);
+		}
+		sqlite::value operator[](int i) const
+		{
+			return value(i);
+		}
+
+		// position of name in row
+		int column_index(const char* name) const
+		{
+			for (int i = 0; i < column_count(); ++i) {
+				if (0 == _stricmp(column_name(i), name)) {
+					return i;
+				}
+			}
+
+			return -1; // out-of-range lookup returns NULL
+		}
+		sqlite::value value(const char* name) const
+		{
+			return value(column_index(name));
+		}
+		sqlite::value operator[](const char* name) const
+		{
+			return value(name);
 		}
 
 		// Iterator over columns of a row.

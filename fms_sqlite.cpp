@@ -1,5 +1,6 @@
 // fms_sqlite.cpp - test platform independent sqlite
 #include <cassert>
+#include <iostream>
 #include "fms_sqlite.h"
 
 using namespace sqlite;
@@ -220,6 +221,60 @@ void print(sqlite::stmt& stmt)
 	}
 }
 
+void example()
+{
+	sqlite::db db(""); // create an in-memory database
+	sqlite::stmt stmt(db); // calls operator sqlite*() on db
+	stmt.prepare("CREATE TABLE t (a INT, b REAL, c TEXT)");
+	stmt.step(); // execute statement
+
+	stmt.reset(); // reuse stmt
+	stmt.prepare("INSERT INTO t VALUES (?, ?, ?)");
+	stmt.bind(1, 123); // bind is 1-based
+	stmt.bind(2, 1.23);
+	stmt.bind(3, "text");
+	stmt.step(); // insert values
+
+	stmt.reset();
+	stmt.prepare("SELECT * from t");
+	while (SQLITE_ROW == stmt.step()) {
+		std::cout << sqlite3_column_int(stmt, 0) << " "; // 0-based
+		std::cout << sqlite3_column_double(stmt, 1) << " ";
+		std::cout << sqlite3_column_text(stmt, 2) << "\n---\n";
+	}
+
+	{
+		stmt.reset();
+		//stmt.prepare("SELECT * from t");
+		stmt::iterable i(stmt);
+		while (i) {
+			std::cout << sqlite3_column_int(stmt, 0) << " "; // 0-based
+			std::cout << sqlite3_column_double(stmt, 1) << " ";
+			std::cout << sqlite3_column_text(stmt, 2) << "\n---\n";
+			++i;
+		}
+	}
+
+	{
+		stmt.reset();
+		//stmt.prepare("SELECT * from t");
+		stmt::iterable i(stmt);
+
+		while (i) {
+			auto j = stmt::iterator(*i);
+
+			std::cout << (*j).as<int>() << " ";
+			++j;
+			std::cout << (*j).as<double>() << " ";
+			++j;
+			std::cout << (*j).as<std::string_view>() << "\n---\n";
+
+			++i;
+		}
+	}
+
+}
+
 void insert(sqlite3* db)
 {
 	sqlite::stmt stmt(db);
@@ -236,11 +291,14 @@ void insert(sqlite3* db)
 
 int main()
 {
-	int test_datetime = datetime::test();
-	int test_sqlite = stmt::test();
-	int test_value = _value::test();
 
 	try {
+		int test_datetime = datetime::test();
+		int test_sqlite = stmt::test();
+		int test_value = _value::test();
+
+		example();
+
 		sqlite::db db("");
 		insert(db);
 		sqlite::stmt stmt(db);
