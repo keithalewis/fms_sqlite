@@ -5,16 +5,38 @@ C++ wrapper for the sqlite C API.
 ## Typing
 
 Sqlite has [flexible typing](https://www3.sqlite.org/flextypegood.html).  
-It uses 64-bit signed integers, 64-bit IEEE floating point values, character strings, 
-BLOBs, or NULL 
-[internally](https://www3.sqlite.org/c3ref/c_blob.html).  
+Internally, everything is one of the 
+[fundamental types](https://www3.sqlite.org/c3ref/c_blob.html) 
+64-bit signed integer, 64-bit IEEE floating point, character string, BLOB, or NULL. 
 These correspond to `SQLITE_INTEGER`, `SQLITE_FLOAT`, `SQLITE_TEXT`, `SQLITE_BLOB`,
 and `SQLITE_NULL` respectively. 
 The function `sqlite3_column_type` returns the internal type currently being used.
 Note that database operatons might change the internal representation.
+Types in sqlite are so flexible they can change due to a query, unlike most SQL databases. 
 
-Flexible typing makes it easy to use sqlite as a key-value store, but not so convenient
-for getting data in and out of sqlite while preserving their original types.
+Flexible typing makes it easy to use sqlite as a key-value store. The first column
+is text and the second column can be any type. It is not so 
+convenient for getting data in and out of sqlite while preserving their original types.
+
+## Using sqlite
+
+Like any database, you can [create tables](https://www3.sqlite.org/lang_createtable.html)
+by giving them a name and a list of types with optional 
+[column-contraints](https://www3.sqlite.org/syntax/column-constraint.html). 
+The sqlite `CREATE TABLE` command recognizes
+any of the usual SQL data types specified in the 
+[Affinity Name Examples](https://www.sqlite.org/datatype3.html#affinity_name_examples).
+
+_You can only insert values having one of the fundametal types_.
+
+The function `sqlite3_column_decltype` returns the character string used
+when creating a table.
+
+and `int sqlite::stmt::sqltype(int i)` returns the **extended sqlite type**
+based on string used when creating a table.
+### `sqlite::value`
+
+A `sqlite::value` is not a value type like `std::variant`. 
 
 When creating a sqlite table it is possible to specify any of the usual
 SQL data types specified in the 
