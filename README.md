@@ -79,7 +79,7 @@ The type `sqlite::db` is not
 or [copy assignable](https://en.cppreference.com/w/cpp/named_req/CopyAssignable).
 I was not able to devine how a `sqlite3*` pointer could be reliably cloned.
 
-### `sqlite_stmt*`
+### `sqlite3_stmt*`
 
 The class `sqlite::stmt` provides an RAII object for 
 an opaque `sqlite3_stmt*` pointer to a sqlite statement.
@@ -208,3 +208,6 @@ while (i) {
 	++i;
 }
 ```
+We can use C++20 [indirectly_readable](https://en.cppreference.com/w/cpp/iterator/indirectly_readable)
+and [indirectly_writable](https://en.cppreference.com/w/cpp/iterator/indirectly_writable)
+to furthur simplify things.
