@@ -751,11 +751,6 @@ namespace sqlite {
 
 			bool operator==(const iterator&) const = default;
 
-			operator const sqlite::stmt& () const
-			{
-				return *(sqlite::stmt*)this;
-			}
-
 			// STL friendly
 			iterator begin() const
 			{

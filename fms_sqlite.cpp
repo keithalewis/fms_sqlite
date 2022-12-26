@@ -262,7 +262,8 @@ void example()
 			std::cout << (*j).as<int>() << " "; // 0-based
 			++j;
 			std::cout << (*j).as<double>() << " ";
-			std::cout << j.as<std::string_view>() << "\n---\n";
+			++j;
+			std::cout << (*j).as<std::string_view>() << "\n---\n";
 			++i;
 		}
 	}
