@@ -9,10 +9,10 @@ Internally, everything is one of the
 [fundamental types](https://www3.sqlite.org/c3ref/c_blob.html) 
 64-bit signed integer, 64-bit IEEE floating point, character string, BLOB, or NULL. 
 These correspond to `SQLITE_INTEGER`, `SQLITE_FLOAT`, `SQLITE_TEXT`, `SQLITE_BLOB`,
-and `SQLITE_NULL` respectively. 
-The function `int sqlite3_column_type(sqlite3_stmt* stmt, int i)` 
+and `SQLITE_NULL` respectively. The function 
+[`int sqlite3_column_type(sqlite3_stmt* stmt, int i)`](https://www3.sqlite.org/c3ref/column_blob.html) 
 returns the internal type of column `i` for an active `stmt`.
-Database operatons might change the internal type.
+Database operatons might change the internal column types.
 Types in sqlite are so flexible they can change due to a query, unlike most SQL databases. 
 
 Flexible typing makes it convenient to use sqlite as a key-value store. 
@@ -31,7 +31,7 @@ The function [`sqlite3_column_decltype`](https://www3.sqlite.org/c3ref/column_de
 returns the character string used when creating a table
 and `int sqlite_type(const char*)` returns the extended sqlite type
 based on the string returned by this.
-You can use this to preserve the original type of data being
+You can use this to determine the original type of data being
 inserted or extracted from sqlite.
 
 ### `SQLITE_BOOLEAN`
@@ -44,7 +44,7 @@ was declare with a type starting with `BOOL`.
 
 The [`datetime`](https://www.sqlite.org/lang_datefunc.html) type is a union
 that can contain a floating point Gegorian date, integer `time_t` seconds
-since Unix epoch, or an ISO 8601 format string.
+since Unix epoch, or an ISO 8601-ish format string.
 The function `sqlite_type` returns `SQLITE_DATETIME` if a column
 was declare with a type starting with `DATE`.
 
@@ -63,7 +63,7 @@ to the underlying sqlite C API. All classes wrapping any `sqlite3_xxx*`
 opaque type provide an `operator sqlite_xxx*()` that allows the C++ class to
 be used with any sqlite C API function.
 The `fms_sqlite` library does not wrap every function in the C API,
-but it makes it easy to use any C API function from C++.
+but it makes it easy to call any C API function from C++.
 
 ### `sqlite3*`
 
@@ -77,6 +77,7 @@ The destructor calls [`sqlite3_close`](https://www3.sqlite.org/c3ref/close.html)
 The type `sqlite::db` is not 
 [copy constructible](https://en.cppreference.com/w/cpp/named_req/CopyConstructible)
 or [copy assignable](https://en.cppreference.com/w/cpp/named_req/CopyAssignable).
+I was not able to devine how a `sqlite3*` pointer could be reliably cloned.
 
 ### `sqlite_stmt*`
 
@@ -95,9 +96,10 @@ Statements are used to act on databases. A statement is first
 by compiling the sql statement it is given. This is relatively expensive.
 
 Any parameters in the statement can be bound using `stmt::bind`.
-this is relatively inexpensive.
-The results of the query are returned row-by-row by calling
-[`sqlite3_step`](https://www3.sqlite.org/c3ref/step.html).
+This is relatively inexpensive.
+The rows of a query result are returned by calling
+[`sqlite3_step`](https://www3.sqlite.org/c3ref/step.html) until
+it returns `SQLITE_DONE`.
 
 ```
 sqlite::db db(""); // create an in-memory database
