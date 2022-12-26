@@ -191,15 +191,17 @@ stmt.reset();
 stmt::iterable i(stmt);
 while (i) {
 	auto j = *i;
-
 	assert(*j == 123);
 	++j;
 	assert(*j == 1.23);
 	++j;
 	assert(*j == "text");
 	++j;
-	assert(!j); // iterable
-	assert(j == j.end()); // STL iterator
+	assert(!j);
+	assert(j == j.end());
+
+	assert(stmt[1] == 1.23); // access by index
+	assert(stmt["c"] == "text"); // access by name
 	
 	++i;
 }

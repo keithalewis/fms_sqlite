@@ -284,8 +284,12 @@ void example()
 			++j;
 			assert(*j == "text");
 			++j;
-			assert(!j);
-			assert(j == j.end());
+			assert(!j); // iterable
+			assert(j == j.end()); // STL iterator
+
+			assert(stmt[1] == 1.23); // access by index
+			assert(stmt["c"] == "text"); // access by name
+
 			++i;
 		}
 	}
