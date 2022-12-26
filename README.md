@@ -92,14 +92,16 @@ or [copy assignable](https://en.cppreference.com/w/cpp/named_req/CopyAssignable)
 
 Statements are used to act on databases. A statement is first
 [prepared](https://www3.sqlite.org/c3ref/prepare.html)
-by compiling the sql statement it is given.
+by compiling the sql statement it is given. This is relatively expensive.
+
 Any parameters in the statement can be bound using `stmt::bind`.
+this is relatively inexpensive.
 The results of the query are returned row-by-row using
 (`sqlite3_step`)[https://www3.sqlite.org/c3ref/step.html].
 
 ```
 sqlite::db db(""); // create an in-memory database
-sqlite::stmt stmt(db); // calls operator sqlite*() on db
+sqlite::stmt stmt(db); // calls operator sqlite3*() on db
 stmt.prepare("CREATE TABLE t (a INT, b REAL, c TEXT)");
 stmt.step(); // execute statement
 
@@ -108,6 +110,8 @@ stmt.prepare("INSERT INTO t VALUES (?, ?, ?)");
 stmt.bind(1, 123); // bind is 1-based
 stmt.bind(2, 1.23);
 stmt.bind(3, "text");
+// use stmt.sql() to get the original text of the prepare statement
+// use stmt.sql_expanded() to get the text that will be executed after binding
 stmt.step(); // insert values
 
 stmt.reset();
@@ -127,7 +131,7 @@ Note we first iterate over rows, then iterate over columns.
 
 ### `sqlite::iterable`
 
-A statement _iterable_ is a generalization of a null terminated pointer.
+An _iterable_ is a generalization of a null terminated pointer.
 It uses `explicit operator bool() const` to detect when it is done.
 Values are extracted using `operator*()` and advanced to
 the next value with `operator++()`.
@@ -143,9 +147,11 @@ while (i) {
 	++i;
 }
 ```
+The iterable gets a copy of the pointer to `stmt` and changes its state.
+
 ### `sqlite::iterator`
 
-An statement _iterator_ iterates over the columns of a row
+A statement _iterator_ iterates over the columns of a row
 returned by an iterable. It is an STL iterator and columns
 can be accessed using 0-based `operator[](int)` or by
 column name using `operator[](const char*)`.
@@ -168,36 +174,9 @@ while (i) {
 
 ### `sqlite::value`
 
-A `sqlite::value` is not a value type like `std::variant`. 
-
-When creating a sqlite table it is possible to specify any of the usual
-SQL data types specified in the 
-[Affinity Name Examples](https://www.sqlite.org/datatype3.html#affinity_name_examples).
-The function `sqlite3_column_decltype` returns the character string used
-and `int sqlite::stmt::sqltype(int i)` returns the **extended sqlite type**
-based on string used when creating a table.
-
-
-## `iterable`
-
-An `iterable` allows iteration over rows in the result of a query.
-
-```
-stmt.prepare("SELECT * from table");
-iterable rows(stmt);
-while(rows) {
-	const stmt& row = *rows;
-	// use row...
-	++rows;
-}
-```
-
-Getting data in and out of sqlite is just copying an iterable.
-
-A SELECT statement creates an output iterable `sqlite::stmt`.
-
-An INSERT statement creates an input iterable `sqlite::stmt`.
-
-`copy(I i, O o) { while (i and o) { *o++ = *i++} }`
-
-Override `operator*` to return proxies.
+A `stmt::iterator::operator*()` returns a `sqlite::value`.
+It is not a value type like `std::variant`. It holds
+an opaqure pointer to a `sqlite3_value*` and a column index to represent the value
+of the statement row at that index. It provides 
+`template<T> T as()` member functions to extract values of type `T`,
+as illustrated above.

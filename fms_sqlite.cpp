@@ -224,7 +224,7 @@ void print(sqlite::stmt& stmt)
 void example()
 {
 	sqlite::db db(""); // create an in-memory database
-	sqlite::stmt stmt(db); // calls operator sqlite*() on db
+	sqlite::stmt stmt(db); // calls operator sqlite3*() on db
 	stmt.prepare("CREATE TABLE t (a INT, b REAL, c TEXT)");
 	stmt.step(); // execute statement
 
@@ -235,17 +235,17 @@ void example()
 	stmt.bind(3, "text");
 	stmt.step(); // insert values
 
-	stmt.reset();
-	stmt.prepare("SELECT * from t");
-	while (SQLITE_ROW == stmt.step()) {
-		std::cout << sqlite3_column_int(stmt, 0) << " "; // 0-based
-		std::cout << sqlite3_column_double(stmt, 1) << " ";
-		std::cout << sqlite3_column_text(stmt, 2) << "\n---\n";
-	}
-
 	{
 		stmt.reset();
-		//stmt.prepare("SELECT * from t");
+		stmt.prepare("SELECT * from t");
+		while (SQLITE_ROW == stmt.step()) {
+			std::cout << sqlite3_column_int(stmt, 0) << " "; // 0-based
+			std::cout << sqlite3_column_double(stmt, 1) << " ";
+			std::cout << sqlite3_column_text(stmt, 2) << "\n---\n";
+		}
+	}
+	{
+		stmt.reset();
 		stmt::iterable i(stmt);
 		while (i) {
 			std::cout << sqlite3_column_int(stmt, 0) << " "; // 0-based
@@ -254,21 +254,15 @@ void example()
 			++i;
 		}
 	}
-
 	{
 		stmt.reset();
-		//stmt.prepare("SELECT * from t");
 		stmt::iterable i(stmt);
-
 		while (i) {
-			auto j = stmt::iterator(*i);
-
-			std::cout << (*j).as<int>() << " ";
+			auto j = *i;
+			std::cout << (*j).as<int>() << " "; // 0-based
 			++j;
 			std::cout << (*j).as<double>() << " ";
-			++j;
-			std::cout << (*j).as<std::string_view>() << "\n---\n";
-
+			std::cout << j.as<std::string_view>() << "\n---\n";
 			++i;
 		}
 	}
