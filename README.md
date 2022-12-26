@@ -96,7 +96,7 @@ by compiling the sql statement it is given. This is relatively expensive.
 
 Any parameters in the statement can be bound using `stmt::bind`.
 this is relatively inexpensive.
-The results of the query are returned row-by-row using
+The results of the query are returned row-by-row by calling
 [`sqlite3_step`](https://www3.sqlite.org/c3ref/step.html).
 
 ```
@@ -118,6 +118,7 @@ stmt.reset();
 stmt.prepare("SELECT * from t");
 int ret = stmt.step();
 while (SQLITE_ROW == ret) {
+	// use operator sqlite3_stmt*() on stmt
 	assert(123 == sqlite3_column_int(stmt, 0)); // 0-based
 	assert(1.23 == sqlite3_column_double(stmt, 1));
 	// sqlite3_column_text returns const unsigned char*
@@ -125,6 +126,7 @@ while (SQLITE_ROW == ret) {
 
 	ret = stmt.step();
 }
+assert(SQLITE_DONE == ret);
 ```
 
 Note we first iterate over rows, then iterate over columns.
@@ -148,7 +150,8 @@ while (i) {
 	++i;
 }
 ```
-The iterable gets a copy of the pointer to `stmt` and changes its state.
+The iterable gets a copy of the pointer to `stmt` and changes its state
+when `operator++()` calls `sqlite3_step`.
 
 ### `sqlite::iterator`
 
@@ -181,7 +184,7 @@ It is not a value type like `std::variant`. It holds
 an opaque pointer to a `sqlite3_value*` and a column index to represent the value
 of the statement row at that index. It provides 
 `template<T> T as()` member functions to extract values of type `T`,
-as illustrated above. It also provides `operator==(const T&)`
+as illustrated above. It also provides `bool operator==(const T&) const`
 for known types.
 ```
 stmt.reset();
