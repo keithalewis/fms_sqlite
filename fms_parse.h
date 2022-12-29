@@ -367,7 +367,7 @@ namespace fms {
 #include <cassert>
 
 	template<class T>
-	inline bool parse_test()
+	inline int parse_test()
 	{
 		{
 			view<T> v;
@@ -461,7 +461,7 @@ namespace fms {
 			tm tm;
 			assert(parse_tm(v, &tm));
 			time_t u = _mkgmtime(&tm);
-			tm = *gmtime(&u);
+			_gmtime64_s(&tm, &u);
 			assert(tm.tm_hour == 0);
 			assert(tm.tm_min == 0);
 			assert(tm.tm_sec == 0);
@@ -471,14 +471,14 @@ namespace fms {
 			view<const char> v(buf, (int)strlen(buf));
 			tm tm;
 			assert(parse_tm(v, &tm));
-			time_t u = _mkgmtime(&tm);
-			tm = *gmtime(&u);
+			time_t u = _mkgmtime64(&tm);
+			_gmtime64_s(&tm, &u);
 			assert(tm.tm_hour == 0);
 			assert(tm.tm_min == 0);
 			assert(tm.tm_sec == 0);
 		}
 
-		return true;
+		return 0;
 	}
 
 #endif // _DEBUG

@@ -2,11 +2,46 @@
 
 A breviloquent C++ wrapper for the sqlite C API.
 
+## Usage
+
+Create a new, or open an existing. sqlite database with `sqlite::db db(file, flags)`.
+Use `sqlite::db db("")` to create a temporary in-memory database.
+
+Create a sqlite statement with `sqlite::stmt stmt(db)`.
+
+Compile a SQL statement with `stmt.prepare(sql)` and call `stmt.bind(index, value)`
+to set parameters.
+
+Run the SQL statement using `stmt.step()`. If it returns `SQLITE_ROW`
+then keep calling `stmt.step()` until it returns `SQLITE_DONE`.
+
+The columns of a statement can be accessed with `sqlite::value(stmt, i)`.
+Use `sqlite::value::sqltype()` to detect the declared type and 
+`sqlite::value::as`_type_ to retreive data as _type_. The function
+`sqlite::value::type()` returns the the fundamental type used to store the value.
+
+To iterate over all rows returned by a query use `sqlite::stmt::iterable i(stmt)`.
+It implement `explicit operator bool() const` to detect when there
+are no more results. 
+
+```
+stmt::iterable i(stmt);
+while (i) {
+	... use *i ...
+	++i;
+}
+```
+
+The result of `iterable::operator*() const` is a `sqlite::stmt::iterator` that publicly
+inherits from `sqlite::value`. (So does `iterable`.) Use `operator[](int)` to access columns using a
+0-based index or `operator[](std::string_view)` to access columns by their name.
+It is also an iterable that provides `explicit operator bool() const`.
+
 ## Typing
 
 Sqlite has [flexible typing](https://www3.sqlite.org/flextypegood.html).  
 Internally, everything is one of the 
-[fundamental types](https://www3.sqlite.org/c3ref/c_blob.html) 
+[Fundamental Datatypes](https://www3.sqlite.org/c3ref/c_blob.html) 
 64-bit signed integer, 64-bit IEEE floating point, character string, BLOB, or NULL. 
 These correspond to `SQLITE_INTEGER`, `SQLITE_FLOAT`, `SQLITE_TEXT`, `SQLITE_BLOB`,
 and `SQLITE_NULL` respectively. The function 
@@ -17,22 +52,35 @@ Types in sqlite are so flexible they can change due to a query, unlike most SQL 
 
 Flexible typing makes it convenient to use sqlite as a key-value store. 
 The first column is text and the second column can be 
-[any type](http://oplaunch.com/blog/2015/04/30/the-truth-about-any-color-so-long-as-it-is-black/). 
+any [Dynamically Typed Value Object](https://www.sqlite.org/c3ref/value.html). 
 It is not so convenient for getting data in and out of sqlite while preserving 
 their original types.
 
-The _extended types_ `SQLITE_BOOLEAN` and `SQLITE_DATETIME` are defined 
-in `fms_sqlite.h` to preserve, e.g., Excel and JSON/BSON fidelity.
-Excel and JSON have a boolean type, but not a datetime type. BSON has both.
-These extended types are not definded in the `sqlite.h` header file.
+## Compatibility
 
-It takes some care to preserve fidelity when inserting and extracting boolean and datetime types.
-The function [`sqlite3_column_decltype`](https://www3.sqlite.org/c3ref/column_decltype.html)
-returns the character string used when creating a table
-and `int sqlite_type(const char*)` returns the extended sqlite type
-based on the string returned by this.
-You can use this to determine the original type of data being
-inserted or extracted from sqlite.
+One of the many reasons for sqlite's popularity is that it accommodates
+using SQL [CREATE TABLE](https://www3.sqlite.org/lang_createtable.html) 
+syntax encountered in the wild. 
+The type-name used in a 
+[column definition](https://www3.sqlite.org/syntax/column-def.html)
+is made available by  
+the function [`sqlite3_column_decltype`](https://www3.sqlite.org/c3ref/column_decltype.html).
+
+This is used when inserting or `CAST`ing values based on 
+[Column Affinity](https://sqlite.org/datatype3.html#determination_of_column_affinity).
+External types are converted to a fundmental sqlite type based on this, except for
+the quirky `NUMERIC` affinity to handle `DECIMAL(?,?)`, `BOOLEAN`, `DATE`,
+and `DATETIME` types.
+There is no definition of `SQLITE_NUMERIC` in the sqlite source code.
+
+## `fms_sqlite.h`
+
+The file `fms_sqlite.h` defines `SQLITE_NUMERIC` so `int sqlite::affinity(const char*)` 
+can be implemented based on the sqlite affinity algorithm for declared column types.
+
+It also defines the _extended types_ `SQLITE_BOOLEAN` and `SQLITE_DATETIME`.
+Use `int sqlite_type(std::string_view type)` to convert the declared
+type in `CREATE TABLE` to an extended type.
 
 ### `SQLITE_BOOLEAN`
 
@@ -43,7 +91,7 @@ was declare with a type starting with `BOOL`.
 ### `SQLITE_DATETIME`
 
 The [`datetime`](https://www.sqlite.org/lang_datefunc.html) type is a union
-that can contain a floating point Gegorian date, integer `time_t` seconds
+that can contain a floating point Gegorian date, 64-bit integer `time_t` seconds
 since Unix epoch, or an ISO 8601-ish format string.
 The function `sqlite_type` returns `SQLITE_DATETIME` if a column
 was declare with a type starting with `DATE`.
@@ -54,7 +102,23 @@ and text, but sqlite only recognizes a subset of
 [ISO 8601](https://www.w3.org/TR/NOTE-datetime) string formats.
 
 Use `datetime::as_time_t()` to convert to
-the preferred integer `time_t` representaion. 
+the preferred integer `time_t` representaion.
+It uses `fms_parse.h` to convert non-ISO 8601 strings
+from the wild into valid dates.
+
+### `fms::sqlite::db`
+
+A thin RAII wrapper for `sqlite3_open_v2` and `sqlite3_close`.
+Use `sqlite::db db("")` if you just need a temporary in-memory database.
+
+### `fms::sqlite::value`
+
+This is not a value type in the Alexander Stepanov sense.
+It uses an active `sqlite3_stmt*` and an index as a proxy
+for a non-owning view. It is your responsibility to ensure
+the statment pointer is valid when using it.
+
+
 
 ## Using `fms::sqlite`
 

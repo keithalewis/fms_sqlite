@@ -6,6 +6,7 @@
 #if _MSC_VER >= 1929
 #include <format>
 #endif
+#include <iostream>
 #include <map>
 #include <string_view>
 #include <stdexcept>
@@ -104,7 +105,7 @@ inline int sqlite_type(std::string_view type)
 
 namespace sqlite {
 
-	// https://sqlite.org/datatype3.html#determination_of_column_affinity"
+	// https://sqlite.org/datatype3.html#determination_of_column_affinity
 	inline int affinity(const std::string_view& decl)
 	{
 		if (decl.contains("INT")) {
@@ -133,10 +134,10 @@ namespace sqlite {
 		int type;
 
 		datetime() noexcept
-			: value{ .t = nullptr }, type{ SQLITE_UNKNOWN}
+			: value{ .t = nullptr }, type{ SQLITE_UNKNOWN }
 		{ }
 		explicit datetime(double f) noexcept
-			: value{ .f = f }, type{ SQLITE_FLOAT}
+			: value{ .f = f }, type{ SQLITE_FLOAT }
 		{ }
 		explicit datetime(time_t i) noexcept
 			: value{ .i = i }, type{ SQLITE_INTEGER }
@@ -221,7 +222,7 @@ namespace sqlite {
 		const char* str;
 	public:
 		string()
-			: str{nullptr}
+			: str{ nullptr }
 		{ }
 		string(const char* str)
 			: str{ str }
@@ -291,62 +292,77 @@ namespace sqlite {
 
 	};
 
-	// Value of i-th column of statement.
-	// Not a value type. It assumes the lifetime of pstmt.
-	class value {
-		// static null ??? return using index out of bounds?
-		// use scratch db 
-		/*
-			template<class T>
-			sqlite3_value* make_value(const T& t)
-			{
-				stmt s(tmp_db);
-				s.prepare("SELECT ? FROM tmp");
-				s.bind(1, t);
-				s.step();
-				return sqlite3_column_value(s, 0);
-			}
-			// ??? life times ???
-		*/
+	// Values of 0-based columns of statement.
+	// It assumes the lifetime of pstmt.
+	class values {
+	protected:
 		sqlite3_stmt* pstmt;
-		int i;
 	public:
-		value()
-			: pstmt{ nullptr }, i{ -1 }
+		values()
+			: pstmt{ nullptr }
 		{ }
-		value(sqlite3_stmt* pstmt, int i)
-			: pstmt{ pstmt }, i{ i }
-		{
-			if (!pstmt) {
-				throw std::runtime_error(__FUNCTION__ ": null statement");
-			}
-		}
-		value(const value&) = default;
-		value& operator=(const value&) = default;
-		~value()
+		values(sqlite3_stmt* pstmt)
+			: pstmt{ pstmt }
 		{ }
-
-		operator sqlite3_value* () const
-		{
-			return sqlite3_column_value(pstmt, i);
-		}
+		values(const values&) = default;
+		values& operator=(const values&) = default;
+		~values() // not virtual
+		{ }
 
 		// very equal
-		bool operator==(const value&) const = default;
-		
-		// Fundamental sqlite type.
-		int type() const
+		bool operator==(const values&) const = default;
+
+		int column_count() const
 		{
-			return sqlite3_column_type(pstmt, i);
+			return sqlite3_column_count(pstmt);
 		}
-		const char* column_decltype() const
+
+		//
+		// names
+		//
+
+		const char* column_name(int j) const
 		{
-			return sqlite3_column_decltype(pstmt, i);
+			return sqlite3_column_name(pstmt, j);
 		}
-		// Extended type.
-		int sqltype() const
+		const void* column_name16(int j) const
 		{
-			return sqlite_type(column_decltype());
+			return sqlite3_column_name16(pstmt, j);
+		}
+
+		//
+		// types
+		//
+
+		// Fundamental SQLITE_* type.
+		int column_type(int j) const
+		{
+			return sqlite3_column_type(pstmt, j);
+		}
+
+		// SQL string used in CREATE_TABLE
+		const char* column_decltype(int j) const
+		{
+			const char* ctype = sqlite3_column_decltype(pstmt, j);
+
+			return ctype ? ctype : "TEXT";
+		}
+		// Extended SQLITE_* type.
+		int column_sqltype(int j) const
+		{
+			return ::sqlite_type(column_decltype(j));
+		}
+
+		// position of case-insensitive name in row
+		int column_index(const char* name) const
+		{
+			for (int i = 0; i < column_count(); ++i) {
+				if (0 == _stricmp(column_name(i), name)) {
+					return i;
+				}
+			}
+
+			return -1; // out-of-range lookup returns NULL
 		}
 
 		// bytes, not chars
@@ -354,187 +370,58 @@ namespace sqlite {
 		{
 			return sqlite3_column_bytes(pstmt, j);
 		}
-		int bytes() const
-		{
-			return column_bytes(i);
-		}
 		int column_bytes16(int j) const
 		{
 			return sqlite3_column_bytes16(pstmt, j);
 		}
-		int bytes16() const
-		{
-			return column_bytes16(i);
-		}
-		const char* column_name(int j) const
+
+		const void* column_blob(int j)
 		{
 			return sqlite3_column_name(pstmt, j);
 		}
-		const char* name() const
-		{
-			return column_name(i);
-		}
-		const wchar_t* column_name16(int j) const
+
+		double column_double(int j) const
 		{
 			// cast from void*
-			return (const wchar_t*)sqlite3_column_name16(pstmt, j);
+			return sqlite3_column_double(pstmt, j);
 		}
-		const wchar_t* name16() const
+
+		int column_int(int j) const
 		{
-			return column_name16(i);
+			return sqlite3_column_int(pstmt, j);
 		}
-		// Contents of column i as text.
+
+		sqlite_int64 column_int64(int j) const
+		{
+			return sqlite3_column_int64(pstmt, j);
+		}
+
 		const unsigned char* column_text(int j) const
 		{
 			return sqlite3_column_text(pstmt, j);
-		}
-		const unsigned char* text() const
-		{
-			return column_text(i);
 		}
 		const void* column_text16(int j) const
 		{
 			return sqlite3_column_text16(pstmt, j);
 		}
-		const void* text16() const
+
+		sqlite3_value* value(int i) const
 		{
-			return column_text16(i);
+			return sqlite3_column_value(pstmt, i);
 		}
 
-		// convert to T
-		template<class T> T as() const;
-
-		template<>
-		int as() const
-		{
-			return sqlite3_column_int(pstmt, i);
-		}
-		operator int() const
-		{
-			return as<int>();
-		}
-		bool operator==(int d) const
-		{
-			return SQLITE_INTEGER == type() and d == as<int>();
-		}
-
-		template<>
-		int64_t as() const
-		{
-			return sqlite3_column_int64(pstmt, i);
-		}
-		operator int64_t() const
-		{
-			return as<int64_t>();
-		}
-		bool operator==(int64_t d) const
-		{
-			return SQLITE_INTEGER == type() and d == as<int64_t>();
-		}
-
-		template<>
-		double as() const
-		{
-			return sqlite3_column_double(pstmt, i);
-		}
-		operator double() const
-		{
-			return as<double>();
-		}
-		bool operator==(double d) const
-		{
-			return SQLITE_FLOAT == type() and d == as<double>();
-		}
-
-		template<>
-		std::string_view as() const
-		{
-			return std::string_view((const char*)column_text(i), column_bytes(i));
-		}
-		operator std::string_view() const
-		{
-			return as<std::string_view>();
-		}
-		bool operator==(const std::string_view& v) const
-		{
-			return SQLITE_TEXT == type() and v == as<std::string_view>();
-		}
-		bool operator==(const char* v) const
-		{
-			return operator==(std::string_view(v));
-		}
-
-		template<>
-		std::wstring_view as() const
-		{
-			return std::wstring_view((wchar_t*)column_text16(i), column_bytes16(i));
-		}
-		operator std::wstring_view() const
-		{
-			return as<std::wstring_view>();
-		}
-		bool operator==(const std::wstring_view& v) const
-		{
-			return SQLITE_TEXT == type() and v == as<std::wstring_view>();
-		}
-		bool operator==(const wchar_t* v) const
-		{
-			return operator==(std::wstring_view(v));
-		}
-
-		// Extended types
-		template<>
-		bool as() const
-		{
-			return 0 != sqlite3_column_int(pstmt, i);
-		}
-		operator bool() const
-		{
-			return as<bool>();
-		}
-		bool operator==(bool b) const
-		{
-			return SQLITE_INTEGER == type() and b == as<bool>();
-		}
-
-		template<>
-		datetime as() const
-		{
-			switch (type()) {
-			case SQLITE_FLOAT:
-				return datetime(operator double());
-			case SQLITE_INTEGER:
-				return datetime(operator int64_t());
-			case SQLITE_TEXT:
-				// cast from unsigned char
-				return datetime(operator std::string_view().data());
-			}
-
-			return datetime{};
-		}
-		operator datetime() const
-		{
-			return as<datetime>();
-		}
-		bool operator==(const datetime& dt) const
-		{
-			return SQLITE_DATETIME == sqltype() and dt == as<datetime>();
-		}
 	};
 
-
-	// https://www.sqlite.org/lang.html
-	class stmt {
-	protected:
-		sqlite3_stmt* pstmt;
+	class stmt : public values {
 	public:
 		stmt(sqlite3* pdb)
-			: pstmt{ nullptr }
+			: sqlite::values(nullptr)
 		{
 			// scare up a sqlite3_stmt*
 			FMS_SQLITE_OK(pdb, sqlite3_prepare_v2(pdb, "SELECT 1", -1, &pstmt, 0));
 			reset();
 		}
+		// so ~stmt is called only once
 		stmt(const stmt& _stmt) = delete;
 		stmt& operator=(const stmt& _stmt) = delete;
 		~stmt()
@@ -572,20 +459,22 @@ namespace sqlite {
 		string normalized_sql() const
 		{
 			return string(sqlite3_normalized_sql(pstmt));
+
 		}
 
-		// https://www.sqlite.org/c3ref/prepare.html
+		// Compile An SQL Statement: https://www.sqlite.org/c3ref/prepare.html
+		// SQL As Understood By SQLite: https://www.sqlite.org/lang.html
 		int prepare(const std::string_view& sql)
 		{
 			reset();
 			sqlite3* pdb = db_handle();
-			
-			FMS_SQLITE_OK(pdb, sqlite3_prepare_v2(pdb, sql.data(), (int)sql.size(), &pstmt, 0));
-		
-			return sqlite_status;
+			int ret = sqlite3_prepare_v2(pdb, sql.data(), (int)sql.size(), &pstmt, 0);
+			FMS_SQLITE_OK(pdb, ret);
+
+			return ret;
 		}
-		// int ret = step();  while (ret == SQLITE_ROW) { ...; ret = step()) { }
-		// if (!SQLITE_DONE) then error
+		// int ret = stmt.step();  while (ret == SQLITE_ROW) { ...; ret = stmt.step()) { }
+		// if (ret != SQLITE_DONE) then error
 		// https://sqlite.org/c3ref/step.html
 		int step()
 		{
@@ -598,14 +487,15 @@ namespace sqlite {
 			return ret;
 		}
 
-		// reset a prepared statement
+		// Reset a prepared statement but preserve bindings.
 		// https://sqlite.org/c3ref/reset.html
 		int reset()
 		{
 			return sqlite3_reset(pstmt);
 		}
 
-		// clear any existing bindings
+		// Reset bindings to NULL.
+		// https://www.sqlite.org/c3ref/clear_bindings.html
 		int clear_bindings()
 		{
 			return sqlite3_clear_bindings(pstmt);
@@ -630,7 +520,7 @@ namespace sqlite {
 			return *this;
 		}
 
-		// int or bool
+		// int 
 		stmt& bind(int i, int j)
 		{
 			FMS_SQLITE_OK(db_handle(), sqlite3_bind_int(pstmt, i, j));
@@ -653,6 +543,10 @@ namespace sqlite {
 
 			return *this;
 		}
+		stmt& bind(int i, const char* str, void(*cb)(void*) = SQLITE_TRANSIENT)
+		{
+			return bind(i, std::string_view(str), cb);
+		}
 		// text16 with length in characters
 		stmt& bind(int i, const std::wstring_view& str, void(*cb)(void*) = SQLITE_TRANSIENT)
 		{
@@ -661,15 +555,24 @@ namespace sqlite {
 
 			return *this;
 		}
-
-		stmt& bind(int i, const sqlite3_value* value)
+		stmt& bind(int i, const wchar_t* str, void(*cb)(void*) = SQLITE_TRANSIENT)
 		{
-			FMS_SQLITE_OK(db_handle(), sqlite3_bind_value(pstmt, i, value));
+			return bind(i, std::wstring_view(str), cb);
+		}
+
+		//
+		// extended types
+		//
+
+		// boolean
+		stmt& bind(int j, bool b)
+		{
+			FMS_SQLITE_OK(db_handle(), sqlite3_bind_int(pstmt, j, b));
 
 			return *this;
 		}
 
-		// bind underlying datetime type
+		// underlying datetime type
 		stmt& bind(int i, const datetime& dt)
 		{
 			switch (dt.type) {
@@ -694,62 +597,35 @@ namespace sqlite {
 			return sqlite3_bind_parameter_index(pstmt, name);
 		}
 
-		//
-		// 0-base column data
-		// 
-
-		// number of columns returned
-
-		int column_count() const
-		{
-			return sqlite3_column_count(pstmt);
-		}
-		const char* column_name(int i) const
-		{
-			return sqlite3_column_name(pstmt, i);
-		}
-
-		sqlite::value value(int i) const
-		{
-			return sqlite::value(pstmt, i);
-		}
-		sqlite::value operator[](int i) const
-		{
-			return value(i);
-		}
-
-		// position of name in row
-		int column_index(const char* name) const
-		{
-			for (int i = 0; i < column_count(); ++i) {
-				if (0 == _stricmp(column_name(i), name)) {
-					return i;
-				}
-			}
-
-			return -1; // out-of-range lookup returns NULL
-		}
-		sqlite::value value(const char* name) const
-		{
-			return value(column_index(name));
-		}
-		sqlite::value operator[](const char* name) const
-		{
-			return value(name);
-		}
-
 		// Iterator over columns of a row.
-		class iterator {
-			sqlite3_stmt* pstmt;
-			int i, e; // column index, number of columns
+		class iterator : public values {
+			int i;
+			int e; // number of columns
 		public:
-			using value_type = sqlite::value;
+			using iterator_category = std::output_iterator_tag;
+			using value_type = sqlite::stmt::iterator;
 
+			iterator()
+				: values(nullptr), i{ -1 }, e{ -1 }
+			{ }
 			iterator(sqlite3_stmt* pstmt, int i = 0)
-				: pstmt(pstmt), i{ i }, e{ sqlite3_column_count(pstmt) }
+				: values(pstmt), i{ i }, e{ column_count() }
+			{ }
+			iterator(const iterator&) = default;
+			iterator& operator=(const iterator&) = default;
+			~iterator()
 			{ }
 
 			bool operator==(const iterator&) const = default;
+
+			value_type operator[](int j) const
+			{
+				return iterator(pstmt, j);
+			}
+			value_type operator[](const char* name) const
+			{
+				return iterator(pstmt, column_index(name));
+			}
 
 			// STL friendly
 			iterator begin() const
@@ -768,7 +644,7 @@ namespace sqlite {
 			}
 			value_type operator*()
 			{
-				return sqlite::value(pstmt, i);
+				return *this;
 			}
 			iterator& operator++()
 			{
@@ -786,19 +662,117 @@ namespace sqlite {
 
 				return _this;
 			}
+
+			// fundamental type
+			int type() const
+			{
+				return column_type(i);
+			}
+			// extended type
+			int sqltype() const
+			{
+				return values::column_sqltype(i);
+			}
+
+			// correspond to SQLITE_* types
+			double as_float() const
+			{
+				return column_double(i);
+			}
+			bool operator==(double d) const
+			{
+				return SQLITE_FLOAT == type() and d == as_float();
+			}
+
+			int as_int() const
+			{
+				return column_int(i);
+			}
+			bool operator==(int j) const
+			{
+				return SQLITE_INTEGER == type() and j == as_int();
+			}
+
+			int64_t as_int64() const
+			{
+				return column_int64(i);
+			}
+			bool operator==(int64_t j) const
+			{
+				return SQLITE_INTEGER == type() and j == as_int64();
+			}
+
+			std::string_view as_text() const
+			{
+				return std::string_view((const char*)column_text(i), column_bytes(i));
+			}
+			bool operator==(const std::string_view& v) const
+			{
+				return SQLITE_TEXT == type() and v == as_text();
+			}
+			// specialize == "str"
+			bool operator==(const char* str) const
+			{
+				return operator==(std::string_view(str));
+			}
+
+			std::wstring_view as_text16() const
+			{
+				return std::wstring_view((wchar_t*)column_text16(i), column_bytes16(i));
+			}
+			bool operator==(const std::wstring_view& v) const
+			{
+				return SQLITE_TEXT == type() and v == as_text16();
+			}
+			bool operator==(const wchar_t* str) const
+			{
+				return operator==(std::wstring_view(str));
+			}
+
+			// Extended types
+			bool as_boolean() const
+			{
+				return 0 != column_int(i);
+			}
+			bool operator==(bool b) const
+			{
+				return SQLITE_BOOLEAN == sqltype() and b == as_boolean();
+			}
+
+			datetime as_datetime() const
+			{
+				switch (type()) {
+				case SQLITE_FLOAT:
+					return datetime(as_float());
+				case SQLITE_INTEGER:
+					return datetime(as_int64());
+				case SQLITE_TEXT:
+					// cast from unsigned char
+					return datetime(as_text().data());
+				}
+
+				return datetime{};
+			}
+			bool operator==(const datetime& dt) const
+			{
+				return SQLITE_DATETIME == sqltype() and dt == as_datetime();
+			}
+
+			friend std::ostream& operator<<(std::ostream&, const iterator&);
+
 		};
 
 		// Iteratable over rows of result set.
 		// Use `explicit operator bool() const` to detect when done.
 		// iterable it(stmt); while (it) { ... use *it ...; ++it; }
-		class iterable {
-			sqlite3_stmt* pstmt;
+		class iterable : public values {
 			int ret;
 		public:
-			using value_type = sqlite::stmt::iterator; // single row
+			using iterator_category = std::output_iterator_tag;
+			using value_type = sqlite::stmt::iterator;
 
 			iterable(sqlite3_stmt* pstmt)
-				: pstmt{pstmt}
+				: values(pstmt), ret{ SQLITE_ROW }
 			{
 				ret = SQLITE_ROW;
 				operator++();
@@ -830,7 +804,7 @@ namespace sqlite {
 		{
 			int ret = SQLITE_OK;
 			//const char* s = nullptr;
-			
+
 			try {
 				db db("a.db");
 				{
@@ -849,7 +823,7 @@ namespace sqlite {
 
 				sql = "CREATE TABLE a (b INT, c REAL, d TEXT, e DATETIME)";
 				ret = stmt.prepare(sql);
-				assert(sql == stmt.sql());				
+				assert(sql == stmt.sql());
 				assert(SQLITE_DONE == stmt.step());
 				assert(0 == stmt.column_count());
 
@@ -858,34 +832,41 @@ namespace sqlite {
 					"'2023-04-05')"); // datetime must be YYYY-MM-DD HH:MM:SS.SSS
 				ret = stmt.step();
 				assert(SQLITE_DONE == ret);
-				
+
 				stmt.reset();
 				stmt.prepare("SELECT * FROM a");
 				int rows = 0;
-				
+
 				while (SQLITE_ROW == stmt.step()) {
 					assert(4 == stmt.column_count());
-					assert(SQLITE_INTEGER == stmt.value(0).type());
-					assert(stmt.value(0) == 123);
-					assert(SQLITE_FLOAT == stmt.value(1).type());
-					assert(stmt.value(1) == 1.23);
-					assert(SQLITE_TEXT == stmt.value(2).type());
-					assert(stmt.value(2) == "foo");
-					assert(SQLITE_TEXT == stmt.value(3).type());
-					assert(SQLITE_DATETIME == stmt.value(3).sqltype());
-					assert(stmt.value(3) == datetime("2023-04-05"));
+					assert(SQLITE_INTEGER == stmt.column_type(0));
+					assert(stmt.column_int(0) == 123);
+					assert(SQLITE_FLOAT == stmt.column_type(1));
+					assert(stmt.column_double(1) == 1.23);
+					assert(SQLITE_TEXT == stmt.column_type(2));
+					assert(0 == strcmp((const char*)stmt.column_text(2), "foo"));
+					assert(SQLITE_TEXT == stmt.column_type(3));
+					assert(SQLITE_DATETIME == stmt.column_sqltype(3));
+					//assert(stmt.column_datetime(3) == dt);
 					++rows;
 				}
 				assert(1 == rows);
 
 				int b = 2;
 				double c = 2.34;
-				char d[2] = { 'a', 0};
-				
+				char d[2] = { 'a', 0 };
+
 				stmt.reset();
 				stmt.prepare("SELECT unixepoch(e) from a");
 				stmt.step();
-				time_t e = stmt.value(0);
+				time_t e = stmt.column_int64(0);
+
+				// fix up column e to time_t
+				// DATEIME column must be homogeneous
+				stmt.reset();
+				stmt.prepare("UPDATE a SET e = ?");
+				stmt.bind(1, e);
+				stmt.step();
 
 				stmt.reset();
 				ret = stmt.prepare("INSERT INTO a VALUES (?, ?, ?, ?)");
@@ -908,7 +889,7 @@ namespace sqlite {
 				stmt.prepare("select count(*) from a");
 				assert(SQLITE_ROW == stmt.step());
 				assert(1 == stmt.column_count());
-				assert(stmt.value(0) == 4);
+				assert(stmt.column_int(0) == 4);
 				assert(SQLITE_DONE == stmt.step());
 			}
 			catch (const std::exception& ex) {
@@ -919,6 +900,25 @@ namespace sqlite {
 		}
 #endif // _DEBUG
 	};
+
+	template<class O>
+	inline O& copy(sqlite::stmt::iterator i, O o)
+	{
+		std::copy(i.begin(), i.end(), o);
+
+		return o;
+	}
+	template<class O>
+	inline O& copy(sqlite::stmt::iterable i, O o)
+	{
+		while (i) {
+			sqlite::stmt::iterator _i = *i;
+			copy(_i, o);
+			++i;
+		}
+
+		return o;
+	}
 
 	inline std::string quote(const std::string_view& s, char l, char r = 0)
 	{
@@ -955,13 +955,13 @@ namespace sqlite {
 		int col = _stmt.column_count();
 		while (i) {
 			const stmt& si = *i;
-			
+
 			// cache types
 			std::vector<int> type(col);
 			for (int j = 0; j < col; ++j) {
 				type[j] = (*i).sqltype(j);
 			}
-			
+
 			for (int j = 0; j < col; ++j) {
 				switch (type[j]) {
 				case SQLITE_NULL:
@@ -993,7 +993,7 @@ namespace sqlite {
 					*/
 				default:
 					c.push_back(); // null
-				}
+}
 			}
 			++i;
 		}
@@ -1027,10 +1027,10 @@ namespace sqlite {
 			stmt.prepare(query.c_str());
 
 			while (SQLITE_ROW == stmt.step()) {
-				push_back(stmt.column_text(1), 
-					stmt.column_text(2), 
+				push_back(stmt.column_text(1),
+					stmt.column_text(2),
 					stmt.column_int(3),
-					stmt.column_text(4),stmt.column_int(5));
+					stmt.column_text(4), stmt.column_int(5));
 			}
 		}
 
@@ -1259,3 +1259,32 @@ namespace sqlite {
 	};
 #endif // 0
 } // sqlite
+
+inline std::ostream& sqlite::operator<<(std::ostream& o, const sqlite::stmt::iterator& v)
+{
+	switch (v.sqltype()) {
+	case SQLITE_INTEGER:
+		o << v.as_int64();
+		break;
+	case SQLITE_FLOAT:
+		o << v.as_float();
+		break;
+	case SQLITE_TEXT:
+		o << v.as_text();
+		break;
+		//case SQLITE_BLOB:
+	case SQLITE_BOOLEAN:
+		o << v.as_boolean();
+		break;
+	case SQLITE_DATETIME:
+		o << v.as_datetime().value.t;
+		break;
+	case SQLITE_NULL:
+		o << "{}";
+		break;
+	default:
+		o << "<unknown>";
+	}
+
+	return o;
+}
