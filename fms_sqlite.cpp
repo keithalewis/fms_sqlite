@@ -25,16 +25,15 @@ void print(sqlite::stmt& stmt)
 	iterable i(stmt);
 	iterator _i = *i;
 	std::copy(_i.begin(), _i.end(), std::ostream_iterator<sqlite::value>(std::cout, ", "));
-	//copy(_i, std::ostream_iterator<sqlite::iterator>(std::cout, ", "));
-	//copy(i, std::ostream_iterator<sqlite::stmt::iterable>(std::cout, ", "));
+	std::cout << '\n';
+	copy(_i, std::ostream_iterator<sqlite::value>(std::cout, ", "));
+	std::cout << '\n';
+	copy(i, std::ostream_iterator<sqlite::value>(std::cout, ", "));
 	
 }
 
 int main()
 {
-	//std::vector<int> i{ 1,2,3 };
-	//std::copy(i.begin(), i.end(), std::ostream_iterator<int>(std::cout, ", "));
-
 	try {
 		fms::parse_test<char>();
 		datetime::test();

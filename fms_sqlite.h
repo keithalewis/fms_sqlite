@@ -941,6 +941,25 @@ namespace sqlite {
 		return o;
 	}
 
+	template<class O, class F>
+	inline O map(sqlite::iterator i, O o, F f)
+	{
+		std::transform(i.begin(), i.end(), o, f);
+
+		return o;
+	}
+	template<class O, class F>
+	inline O map(sqlite::iterable i, O o, F f)
+	{
+		while (i) {
+			sqlite::iterator _i = *i;
+			map(_i, o, f);
+			++i;
+		}
+
+		return o;
+	}
+
 	inline std::string quote(const std::string_view& s, char l, char r = 0)
 	{
 		std::string t(s);
