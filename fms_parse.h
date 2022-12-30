@@ -4,9 +4,19 @@
 #include <cmath>
 #include <ctype.h>
 #include <ctime>
+#include <cstring>
 #include <limits>
 #include <algorithm>
 #include <tuple>
+
+#ifndef _WIN32
+	#define localtime_s(x,y) localtime_r(y,x)
+	#define	_gmtime64_s(x, y) gmtime_r(y, x);
+	#define _gmtime64(x) gmtime(x)
+	#define _mkgmtime64 timegm
+	#define __FUNCTION__ 
+	#define _stricmp(x, y) strcasecmp(x,y)
+#endif
 
 namespace fms {
 	// len < 0 is error
@@ -433,7 +443,7 @@ namespace fms {
 		}
 		{
 			const char date[] = "2022-01-02 3:04:5Z";
-			view v(date, (int)strlen(date));
+			view v(date);
 			auto [y, m, d] = parse_ymd<const char>(v);
 			assert(2022 == y);
 			assert(1 == m);
@@ -450,17 +460,17 @@ namespace fms {
 			localtime_s(&tm, &t);
 			char buf[256];
 			strftime(buf, 256, "%Y-%m-%d %H:%M:%S", &tm);
-			view<const char> v(buf, (int)strlen(buf));
+			view<const char> v(buf);
 			assert(parse_tm(v, &tm));
 			time_t u = mktime(&tm);
 			assert(t == u);
 		}
 		{
 			const char* buf = "2022-1-1";
-			view<const char> v(buf, (int)strlen(buf));
+			view<const char> v(buf);
 			tm tm;
 			assert(parse_tm(v, &tm));
-			time_t u = _mkgmtime(&tm);
+			time_t u = _mkgmtime64(&tm);
 			_gmtime64_s(&tm, &u);
 			assert(tm.tm_hour == 0);
 			assert(tm.tm_min == 0);
@@ -468,7 +478,7 @@ namespace fms {
 		}
 		{
 			const char* buf = "2022-1-1T0:0:0.0Z";
-			view<const char> v(buf, (int)strlen(buf));
+			view<const char> v(buf);
 			tm tm;
 			assert(parse_tm(v, &tm));
 			time_t u = _mkgmtime64(&tm);

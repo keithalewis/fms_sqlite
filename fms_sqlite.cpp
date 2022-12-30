@@ -14,28 +14,36 @@ void insert(sqlite3* db)
 	stmt.reset();
 	stmt.prepare("INSERT INTO t VALUES "
 		"(1, .2, 'a', '2023-04-05'),"
-		"(2, .3, 'b', '2023-04-06');"
+		"(3, .4, 'b', '2023-04-06');"
 	);
 	stmt.step();
 }
 
 void print(sqlite::stmt& stmt)
 {
-	stmt::iterable i(stmt);
-	copy(i, std::ostream_iterator<sqlite::stmt::iterator>(std::cout, ", "));
+	
+	iterable i(stmt);
+	iterator _i = *i;
+	std::copy(_i.begin(), _i.end(), std::ostream_iterator<sqlite::value>(std::cout, ", "));
+	//copy(_i, std::ostream_iterator<sqlite::iterator>(std::cout, ", "));
+	//copy(i, std::ostream_iterator<sqlite::stmt::iterable>(std::cout, ", "));
+	
 }
-
 
 int main()
 {
+	//std::vector<int> i{ 1,2,3 };
+	//std::copy(i.begin(), i.end(), std::ostream_iterator<int>(std::cout, ", "));
 
 	try {
-		int test_datetime = datetime::test();
-		int test_sqlite = stmt::test();
+		fms::parse_test<char>();
+		datetime::test();
+		stmt::test();
 
-		sqlite::db db("");
+		db db("");
 		insert(db);
-		sqlite::stmt stmt(db);
+
+		stmt stmt(db);
 		stmt.prepare("select * from t");
 		print(stmt);
 	}
