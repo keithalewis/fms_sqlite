@@ -185,12 +185,9 @@ the preferred integer `time_t` representaion.
 It uses `fms_parse.h` to convert non-ISO 8601 strings
 from the wild into valid dates. See [Posel's law](https://en.wikipedia.org/wiki/Jon_Postel)
 
+## Example
+
 This libary endeavours to provide the thinest possible C++ API
-to the underlying sqlite C API. All classes wrapping any `sqlite3_xxx*` 
-opaque type provide an `operator sqlite_xxx*()` that allows the C++ class to
-be used with any sqlite C API function.
-The `fms_sqlite` library does not wrap every function in the C API,
-but it makes it easy to call any C API function from C++.
 
 ```
 sqlite::db db(""); // create an in-memory database
