@@ -45,8 +45,12 @@ a view on statments. It assumes the lifetime of the statement used to construct 
 It implments copy constructor and copy assignment by default to copy the
 statement pointer. The destructor is a no-op, just like for any view type.
 
-This class implements `values::column_`_type_ which call the raw `sqlite3_column_`_type_ 
-and `sqlite3_bind_`_type_ which calls `sqlite3_bind_`_type_
+Use it to access values that are a result of executing a query.
+This class implements `values::column_`_type_`(i)` for the 0-based index `i`
+which call the raw `sqlite3_column_`_type_.
+
+Use it to bind values to a prepared statement before executing it.
+This class implements  `sqlite3_bind_`_type_`(j)` which calls `sqlite3_bind_`_type_
 for fundamental and extended types. 
 
 ### `sqlite::value`
@@ -56,24 +60,29 @@ where `i` is the 0-based index.
 Use `sqlite::value::type()` to detect the declared type and 
 `sqlite::value::as`_type_ to retreive data as _type_. The function
 `sqlite::value::column_type()` returns the the fundamental type used to store the value.
-To bind a value use `template<typename T> operator=(const T&)`.
+To bind a value of type `T` use `template<typename T> operator=(const T&)`.
+It knows the column index needs to have 1 added before binding.
 
-To iterate over all rows returned by a query use `sqlite::stmt::iterable i(stmt)`.
-It implements `explicit operator bool() const` to detect when there
-are no more results. 
+### `sqlite::iterator`
+
+Use `sqlite::iterator` to iterate over columns of a statement.
+It satisfies the requirements of an STL forward iterator.
+Its `value_type` is `sqlite::value`.
+
+### `sqlite::cursor`
+
+Use `sqlite::cursor` to iterate over all rows returned by a query.
+It does not have an STL `end()`. Use `explicit operator bool() const`
+to detect when `stmt::step()` returns `SQLITE_DONE`.
+Its `value_type` is `sqlite::iterator`
 
 ```
-stmt::iterable i(stmt);
-while (i) {
-	... use *i ...
-	++i;
+stmt::cursor c(stmt);
+while (c) {
+	... use *c ...
+	++c;
 }
 ```
-
-The result of `iterable::operator*() const` is a `sqlite::stmt::iterator` that publicly
-inherits from `sqlite::value`. (So does `iterable`.) Use `operator[](int)` to access columns using a
-0-based index or `operator[](std::string_view)` to access columns by their name.
-It is also an iterable that provides `explicit operator bool() const`.
 
 ## Typing
 
