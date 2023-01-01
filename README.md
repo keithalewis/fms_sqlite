@@ -10,28 +10,37 @@ Use `sqlite::db db("")` to create a temporary in-memory database.
 Its destructor calls [`sqlite_close`](https://www.sqlite.org/c3ref/close.html).
 Its copy constructor and copy assignement operators are deleted to
 ensure its destructor is only called once. 
-It provides `operator sqlite3*() const` to make it convenient to call any sqlite C API function.
-There are many functions in the C API this library does not have wrappers for.
+It provides `operator sqlite3*() const` to make it convenient to call any sqlite C API function
+by passing a `sqlite::db` object.
+One feature of this library is there are many functions in the sqlite C API
+it does not have wrappers for.
 
 Create a sqlite statement with [`sqlite::stmt stmt(db)`](https://www.sqlite.org/c3ref/stmt.html)
 to execute SQL commands on a database.
+Its destructor calls [`sqlite3_finalize`](https://www.sqlite.org/c3ref/finalize.html).
+Its copy constructor and copy assignement operators are deleted to
+ensure its destructor is only called once. 
+It provides `operator sqlite3_stmt*() const` to make it convenient to call any sqlite C API function
+by passing a `sqlite::stmt` object.
+This is another feature of this library that is almost as good as Rust linear types.
 
 Compile a SQL statement with `stmt.prepare(sql)` and call `stmt.bind(index, value)`
 to set `?` parameters if necessary. The index is 1-based.
-Use `stmt.bind("name", value)` for `@name` parameters.
+Use `stmt.bind("name", value)` for `@name` parameters in the prepared statement.
 
 Execute the SQL statement using `stmt.step()`. If it returns `SQLITE_ROW`
 keep calling `stmt.step()` until it returns `SQLITE_DONE`.
 
-The class `sqlite::stmt` publicly inherits from `sqlite::values`.
+The class `sqlite::stmt` publicly inherits from `sqlite::values` to provide
+a view on statments. It assumes the lifetime of the statement used to construct it.
 This class implements `values::column_`_type_ which calls `sqlite3_column_`_type_ 
 and `sqlite3_bind_`_type` which calls `sqlite3_bind_`_type_
 for fundamental and extended types.
 
-The columns of a statement can be accessed with `sqlite::value(stmt, i)`.
-Use `sqlite::value::sqltype()` to detect the declared type and 
+The columns of a statement can be accessed with another view class `sqlite::value(stmt, i)`.
+Use `sqlite::value::type()` to detect the declared type and 
 `sqlite::value::as`_type_ to retreive data as _type_. The function
-`sqlite::value::type()` returns the the fundamental type used to store the value.
+`sqlite::value::column_type()` returns the the fundamental type used to store the value.
 
 To iterate over all rows returned by a query use `sqlite::stmt::iterable i(stmt)`.
 It implements `explicit operator bool() const` to detect when there
