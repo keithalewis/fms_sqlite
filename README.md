@@ -5,7 +5,8 @@ A breviloquent C++ wrapper for the sqlite C API.
 ## Usage
 
 This library does not wrap all of the functions in the sqlite C API,
-but it does make it convenient to call them and control memory allocation.
+but it does make it convenient to 
+use `sqlite3*` and `sqlite3_stmt*` by using RAII to control memory allocation.
 
 ### `sqlite::db`
 
@@ -30,6 +31,7 @@ ensure its destructor is only called once.
 It provides `operator sqlite3_stmt*() const` to make it convenient to call any sqlite C API function
 by passing a `sqlite::stmt` object.
 This is another feature of this library that is almost as good as Rust linear types.
+Just make sure your `sqlite::db` and `sqlite::stmt` exist while operating on a datbase.
 
 Compile a SQL statement with `stmt.prepare(sql)` and call `stmt.bind(index, value)`
 to set `?` parameters if necessary. The index is 1-based.
@@ -43,22 +45,23 @@ keep calling `stmt.step()` until it returns `SQLITE_DONE`.
 The class `sqlite::stmt` publicly inherits from `sqlite::values` to provide
 a view on statments. It assumes the lifetime of the statement used to construct it.
 It implments copy constructor and copy assignment by default to copy the
-statement pointer. The destructor is a no-op, just like for any view type.
+statement pointer. The destructor is a no-op, just like any view type.
 
 Use it to access values that are a result of executing a query.
 This class implements `values::column_`_type_`(i)` for the 0-based index `i`
 which call the raw `sqlite3_column_`_type_.
 
 Use it to bind values to a prepared statement before executing it.
-This class implements  `sqlite3_bind_`_type_`(j)` which calls `sqlite3_bind_`_type_
+This class implements  `sqlite3_bind_`_type_`(j)` for the 1-based index `j`
+which calls `sqlite3_bind_`_type_
 for fundamental and extended types. 
 
 ### `sqlite::value`
 
 The columns of a statement can be accessed with another view class `sqlite::value(stmt, i)`,
-where `i` is the 0-based index.
-Use `sqlite::value::type()` to detect the declared type and 
-`sqlite::value::as`_type_ to retreive data as _type_. The function
+where `i` is the 0-based index of the row `stmt` currently holds.
+Use `int sqlite::value::type()` to detect the declared type and 
+`sqlite::value::as`_type_`()` to retreive data as _type_. The function
 `sqlite::value::column_type()` returns the the fundamental type used to store the value.
 To bind a value of type `T` use `template<typename T> operator=(const T&)`.
 It knows the column index needs to have 1 added before binding.
@@ -77,12 +80,39 @@ to detect when `stmt::step()` returns `SQLITE_DONE`.
 Its `value_type` is `sqlite::iterator`
 
 ```
-stmt::cursor c(stmt);
+cursor c(stmt);
 while (c) {
-	... use *c ...
+	... iterator i = *c ...
 	++c;
 }
 ```
+
+### `sqlite::copy`
+
+Use `sqlite::copy` to get data out from or in to a sqlite database.
+There are implmentations for `sqlite::iterator` and `sqlite::cursor`.
+
+To get the columns of a row out from a statement iterator use 
+`template<class O> copy(sqlite::iterator i, O o)` where `O`
+satisfies the requirements of an output iterator.
+
+To insert values of an input iterator use 
+`template<class I> copy(I i, sqlite::iterator o)` where `I`
+satisfies the requirements of an input iterator and has
+functions `I::type()` and `I::as`_xxx_ for all extended types.
+If it has an `I::name()` function that will be used to
+insert a value by name.
+
+To get all rows from a statement cursor use 
+`template<class O> copy(sqlite::cursor i, O o)` where `O`
+satisfies the requirements of an output iterator.
+
+To insert all rows from of a cursor use 
+`template<class I> copy(I i, sqlite::cursor o)` where `I`
+satisfies the requirements of an input iterator and has
+functions `I::type()` and `I::as`_xxx_ for all extended types.
+If it has an `I::name()` function that will be used to
+insert a value by name.
 
 ## Typing
 
@@ -127,7 +157,9 @@ can be implemented based on the sqlite affinity algorithm for declared column ty
 
 It also defines the _extended types_ `SQLITE_BOOLEAN` and `SQLITE_DATETIME`.
 Use `int sqlite_type(std::string_view type)` to convert the declared
-type in `CREATE TABLE` to an extended type.
+type in `CREATE TABLE` to an extended type and `const char* sqlite_name(int type)`
+to convert an extended type to a character string that can be used
+in `CREATE TABLE`.
 
 ### `SQLITE_BOOLEAN`
 
@@ -148,26 +180,10 @@ to use with sqlite. It has constructors from floating point, time_t,
 and text, but sqlite only recognizes a subset of 
 [ISO 8601](https://www.w3.org/TR/NOTE-datetime) string formats.
 
-Use `datetime::as_time_t()` to convert to
+Use `datetime::as_time_t()` to convert a `datetime` with type `SQLITE_TEXT` to
 the preferred integer `time_t` representaion.
 It uses `fms_parse.h` to convert non-ISO 8601 strings
-from the wild into valid dates.
-
-### `fms::sqlite::db`
-
-A thin RAII wrapper for `sqlite3_open_v2` and `sqlite3_close`.
-Use `sqlite::db db("")` if you just need a temporary in-memory database.
-
-### `fms::sqlite::value`
-
-This is not a value type in the Alexander Stepanov sense.
-It uses an active `sqlite3_stmt*` and an index as a proxy
-for a non-owning view. It is your responsibility to ensure
-the statment pointer is valid when using it.
-
-
-
-## Using `fms::sqlite`
+from the wild into valid dates. See [Posel's law](https://en.wikipedia.org/wiki/Jon_Postel)
 
 This libary endeavours to provide the thinest possible C++ API
 to the underlying sqlite C API. All classes wrapping any `sqlite3_xxx*` 
@@ -176,149 +192,27 @@ be used with any sqlite C API function.
 The `fms_sqlite` library does not wrap every function in the C API,
 but it makes it easy to call any C API function from C++.
 
-### `sqlite3*`
-
-The class `sqlite::db` provides an RAII object for 
-an opaque `sqlite3*` pointer to a database.
-Use `sqlite::db(file, flags)` to 
-[open or create](https://www3.sqlite.org/c3ref/open.html)
-a database that manages this pointer. 
-The destructor calls [`sqlite3_close`](https://www3.sqlite.org/c3ref/close.html).
-
-The type `sqlite::db` is not 
-[copy constructible](https://en.cppreference.com/w/cpp/named_req/CopyConstructible)
-or [copy assignable](https://en.cppreference.com/w/cpp/named_req/CopyAssignable).
-I was not able to devine how a `sqlite3*` pointer could be reliably cloned.
-
-### `sqlite3_stmt*`
-
-The class `sqlite::stmt` provides an RAII object for 
-an opaque `sqlite3_stmt*` pointer to a sqlite statement.
-Use `sqlite::stmt(sqlite3*)` to 
-associate a database with a statemnt. 
-The destructor calls [`sqlite3_finalize`](https://www3.sqlite.org/c3ref/finalize.html).
-
-The type `sqlite::stmt` is not 
-[copy constructible](https://en.cppreference.com/w/cpp/named_req/CopyConstructible)
-or [copy assignable](https://en.cppreference.com/w/cpp/named_req/CopyAssignable).
-
-Statements are used to act on databases. A statement is first
-[prepared](https://www3.sqlite.org/c3ref/prepare.html)
-by compiling the sql statement it is given. This is relatively expensive.
-
-Any parameters in the statement can be bound using `stmt::bind`.
-This is relatively inexpensive.
-The rows of a query result are returned by calling
-[`sqlite3_step`](https://www3.sqlite.org/c3ref/step.html) until
-it returns `SQLITE_DONE`.
-
 ```
 sqlite::db db(""); // create an in-memory database
 sqlite::stmt stmt(db); // calls operator sqlite3*() on db
-stmt.prepare("CREATE TABLE t (a INT, b REAL, c TEXT)");
-stmt.step(); // execute statement
 
-stmt.reset(); // reuse stmt
+stmt.exec("CREATE TABLE t (a INT, b FLOAT, c TEXT)");
+
 stmt.prepare("INSERT INTO t VALUES (?, ?, ?)");
-stmt.bind(1, 123); // bind is 1-based
-stmt.bind(2, 1.23);
-stmt.bind(3, "text");
-// use stmt.sql() to get the original text of the prepare statement
-// use stmt.sql_expanded() to get the text that will be executed after binding
-stmt.step(); // insert values
+stmt[0] = 123; // calls sqlite3_bind_int(stmt, 0 + 1, 123);
+stmt[1] = 1.23;
+stmt[2] = "str";
+stmt.step();
 
-stmt.reset();
-stmt.prepare("SELECT * from t");
-int ret = stmt.step();
-while (SQLITE_ROW == ret) {
-	// use operator sqlite3_stmt*() on stmt
-	assert(123 == sqlite3_column_int(stmt, 0)); // 0-based
-	assert(1.23 == sqlite3_column_double(stmt, 1));
-	// sqlite3_column_text returns const unsigned char*
-	assert(0 == strcmp("text", (const char*)sqlite3_column_text(stmt, 2)));
+stmt.prepare("SELECT * FROM t");
+stmt.step();
+assert(stmt[0] == 123);
+assert(stmt["b"] == 1.23); // lookup by name
+assert(stmt[2] == "str");
 
-	ret = stmt.step();
+assert(SQLITE_DONE == stmt.step());
 }
-assert(SQLITE_DONE == ret);
 ```
 
 Note we first iterate over rows, then iterate over columns.
 
-### `sqlite::iterable`
-
-An _iterable_ is a generalization of a null terminated pointer.
-It uses `explicit operator bool() const` to detect when it is done.
-Values are extracted using `operator*()` and advanced to
-the next value with `operator++()`.
-An iterable can iterate over the indeterminite number of rows returned by a statement.
-
-```
-stmt.reset();
-stmt.iterable i(stmt);
-while (i) {
-	assert(123 == sqlite3_column_int(stmt, 0)); // 0-based
-	assert(1.23 == sqlite3_column_double(stmt, 1));
-	assert(0 == strcmp("text", (const char*)sqlite3_column_text(stmt, 2)));
-
-	++i;
-}
-```
-The iterable gets a copy of the pointer to `stmt` and changes its state
-when `operator++()` calls `sqlite3_step`.
-
-### `sqlite::iterator`
-
-A statement _iterator_ iterates over the columns of a row
-returned by an iterable. It is an STL iterator and columns
-can be accessed using 0-based `operator[](int)` or by
-column name using `operator[](const char*)`.
-```
-stmt.reset();
-stmt::iterable i(stmt);
-
-while (i) {
-	auto j = *i;
-
-	assert(123 == (*j).as<int>());
-	++j;
-	assert(1.23 == (*j).as<double>());
-	++j;
-	assert((*j).as<std::string_view>() == "text");
-	++j;
-
-	++i;
-}
-```
-
-### `sqlite::value`
-
-A `stmt::iterator::operator*()` returns a `sqlite::value`.
-It is not a value type like `std::variant`. It holds
-an opaque pointer to a `sqlite3_value*` and a column index to represent the value
-of the statement row at that index. It provides 
-`template<T> T as()` member functions to extract values of type `T`,
-as illustrated above. It also provides `bool operator==(const T&) const`
-for known types.
-```
-stmt.reset();
-stmt::iterable i(stmt);
-while (i) {
-	auto j = *i;
-	assert(*j == 123);
-	++j;
-	assert(*j == 1.23);
-	++j;
-	assert(*j == "text");
-	++j;
-	assert(!j);
-	assert(j == j.end());
-
-	assert(stmt[1] == 1.23); // access by index
-	assert(stmt["c"] == "text"); // access by name
-	
-	++i;
-}
-```
-We can use C++20 [indirectly_readable](https://en.cppreference.com/w/cpp/iterator/indirectly_readable)
-and [indirectly_writable](https://en.cppreference.com/w/cpp/iterator/indirectly_writable)
-to furthur simplify things.
