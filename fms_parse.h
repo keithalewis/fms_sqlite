@@ -15,7 +15,7 @@
 	#define	_gmtime64_s(x, y) gmtime_r(y, x);
 	#define _gmtime64(x) gmtime(x)
 	#define _mkgmtime64 timegm
-	#define __FUNCTION__ (__func__)
+	#define __FUNCTION__
 	#define _stricmp(x, y) strcasecmp(x,y)
 #endif
 

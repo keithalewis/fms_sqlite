@@ -85,6 +85,7 @@ int test_datetime()
 			sqlite::stmt stmt(::db);
 			stmt.exec("DROP TABLE IF EXISTS dt");
 			stmt.exec("CREATE TABLE dt (t DATETIME)");
+			
 			// sqlite doesn't recognize this
 			stmt.exec("INSERT INTO dt (t) VALUES('1970-1-2')");
 
@@ -94,6 +95,7 @@ int test_datetime()
 			assert(stmt[0].column_type() == SQLITE_TEXT);
 			assert(stmt[0].type() == SQLITE_DATETIME);
 			datetime t = stmt[0].as_datetime();
+			
 			// sqlite will store the string
 			assert(t == datetime("1970-1-2"));
 
@@ -102,13 +104,14 @@ int test_datetime()
 			stmt.prepare("SELECT unixepoch(t) FROM dt");
 			stmt.step();
 			t = stmt[0].as_datetime();
+			
 			// but it can't parse it
 			assert(t.type == SQLITE_INTEGER);
 			assert(t.value.i == -1);
 
 			assert(SQLITE_DONE == stmt.step());
 
-			// sqlite wants an ISO 8602 date
+			// sqlite wants an ISO 8601 date
 			stmt.exec("UPDATE dt SET t = '1970-01-02'");
 			stmt.prepare("SELECT unixepoch(t) FROM dt");
 			stmt.step();
@@ -152,6 +155,7 @@ int datetime_test = test_datetime();
 void insert(sqlite3* db)
 {
 	sqlite::stmt stmt(db);
+	stmt.exec("DROP TABLE IF EXISTS t");
 	stmt.exec("CREATE TABLE t (a INT, b FLOAT, c TEXT, d DATETIME)");
 
 	stmt.prepare("INSERT INTO t VALUES "
@@ -165,17 +169,18 @@ int test_copy()
 {
 	std::ostringstream s;
 
-	insert(::db);
-	sqlite::stmt stmt(::db);
+	try {
+		insert(::db);
+		sqlite::stmt stmt(::db);
 
-	cursor i(stmt);
-	iterator _i = *i;
-	std::copy(_i.begin(), _i.end(), std::ostream_iterator<sqlite::value>(s, ", "));
-	auto str = s.str();
-	copy(_i, std::ostream_iterator<sqlite::value>(std::cout, ", "));
-	std::cout << '\n';
-	copy(i, std::ostream_iterator<sqlite::value>(std::cout, ", "));
-	
+		stmt.prepare("SELECT * FROM t");
+		copy(stmt, std::ostream_iterator<sqlite::value>(s, ", "));
+		assert(s.str() == "1, 0.2, a, 2023-04-05, 3, 0.4, b, 2023-04-06, ");
+	}
+	catch (const std::exception& ex) {
+		std::cerr << ex.what() << '\n';
+	}
+
 	return 0;
 }
 int copy_test = test_copy();

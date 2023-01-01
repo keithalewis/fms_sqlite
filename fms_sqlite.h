@@ -558,7 +558,7 @@ namespace sqlite {
 			case SQLITE_FLOAT:
 				return datetime(column_double(j));
 			case SQLITE_INTEGER:
-				return datetime(column_int64(j));
+				return datetime((time_t)column_int64(j));
 			case SQLITE_TEXT:
 				// cast from unsigned char
 				return datetime((const char*)column_text(j));
@@ -854,6 +854,7 @@ namespace sqlite {
 
 			return ret;
 		}
+
 		// int ret = stmt.step();  while (ret == SQLITE_ROW) { ...; ret = stmt.step()) { }
 		// if (ret != SQLITE_DONE) then error
 		// https://sqlite.org/c3ref/step.html
@@ -1071,8 +1072,9 @@ namespace sqlite {
 	}
 	// copy all rows
 	template<class O>
-	inline O copy(sqlite::cursor i, O o)
+	inline O copy(sqlite::stmt& stmt, O o)
 	{
+		sqlite::cursor i(stmt);
 		while (i) {
 			sqlite::iterator _i = *i;
 			copy(_i, o);
