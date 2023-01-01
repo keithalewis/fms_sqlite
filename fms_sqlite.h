@@ -355,14 +355,15 @@ namespace sqlite {
 			return sqlite3_errmsg(db_handle());
 		}
 
-		int column_count() const
-		{
-			return sqlite3_column_count(pstmt);
-		}
-
 		//
 		// 1-based binding
 		//
+
+		// https://www.sqlite.org/c3ref/bind_parameter_count.html
+		int bind_parameter_count() const
+		{
+			return sqlite3_bind_parameter_count(pstmt);
+		}
 
 		// null
 		values bind(int i)
@@ -466,6 +467,11 @@ namespace sqlite {
 		// types
 		//
 
+		int column_count() const
+		{
+			return sqlite3_column_count(pstmt);
+		}
+
 		// Fundamental SQLITE_* type.
 		int column_type(int j) const
 		{
@@ -485,11 +491,11 @@ namespace sqlite {
 			return ::sqlite_type(column_decltype(j));
 		}
 
-		// position of case-insensitive name in row
-		int column_index(const char* name) const
+		// position of name in row
+		int column_index(const std::string_view& name) const
 		{
 			for (int i = 0; i < column_count(); ++i) {
-				if (0 == _stricmp(column_name(i), name)) {
+				if (name == column_name(i)) {
 					return i;
 				}
 			}
@@ -748,7 +754,7 @@ namespace sqlite {
 	// Forward iterator over columns of a row.
 	class iterator {
 		values vs;
-		int i;
+		int i; // current index
 		int e; // number of columns
 	public:
 		using iterator_category = std::forward_iterator_tag;
@@ -812,14 +818,11 @@ namespace sqlite {
 
 	// RAII for sqlite3_stmt*
 	class stmt : public values {
+		sqlite3* pdb;
 	public:
 		stmt(sqlite3* pdb)
-			: sqlite::values(nullptr)
-		{
-			// scare up a sqlite3_stmt*
-			FMS_SQLITE_OK(pdb, sqlite3_prepare_v2(pdb, "SELECT 1", -1, &pstmt, 0));
-			reset();
-		}
+			: sqlite::values(nullptr), pdb{pdb}
+		{ }
 		// so ~stmt is called only once
 		stmt(const stmt& _stmt) = delete;
 		stmt& operator=(const stmt& _stmt) = delete;
@@ -833,11 +836,11 @@ namespace sqlite {
 		{
 			return sqlite3_sql(pstmt);
 		}
-		const char* expanded_sql() const
+		string expanded_sql() const
 		{
 			return sqlite3_expanded_sql(pstmt);
 		}
-		string normalized_sql() const
+		const char* normalized_sql() const
 		{
 			return string(sqlite3_normalized_sql(pstmt));
 
@@ -847,8 +850,7 @@ namespace sqlite {
 		// SQL As Understood By SQLite: https://www.sqlite.org/lang.html
 		int prepare(const std::string_view& sql)
 		{
-			reset();
-			sqlite3* pdb = db_handle();
+			pstmt && sqlite3_finalize(pstmt);
 			int ret = sqlite3_prepare_v2(pdb, sql.data(), (int)sql.size(), &pstmt, 0);
 			FMS_SQLITE_OK(pdb, ret);
 
@@ -873,7 +875,6 @@ namespace sqlite {
 		int exec(const std::string_view& sql)
 		{
 			int ret = SQLITE_OK;
-			sqlite3* pdb = db_handle();
 
 			ret = prepare(sql);
 			FMS_SQLITE_OK(pdb, ret);

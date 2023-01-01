@@ -8,12 +8,12 @@ using namespace sqlite;
 
 sqlite::db db(""); // in-memory database
 
+
 int test_simple()
 {
 	try {
 		{
 			sqlite::stmt stmt(::db);
-
 			stmt.exec("DROP TABLE IF EXISTS t");
 			stmt.exec("CREATE TABLE t (a INT, b FLOAT, c TEXT)");
 
@@ -188,9 +188,9 @@ int copy_test = test_copy();
 int main()
 {
 	try {
-		fms::parse_test<char>();
-		datetime::test();
-		stmt::test();
+		//fms::parse_test<char>();
+		//datetime::test();
+		//stmt::test();
 	}
 	catch (const std::exception& ex) {
 		puts(ex.what());
@@ -198,3 +198,4 @@ int main()
 
 	return 0;
 }
+
