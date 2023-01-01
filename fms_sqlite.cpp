@@ -1,17 +1,159 @@
 // fms_sqlite.cpp - test platform independent sqlite
 #include <cassert>
 #include <iostream>
+#include <sstream>
 #include "fms_sqlite.h"
 
 using namespace sqlite;
 
+sqlite::db db(""); // in-memory database
+
+int test_simple()
+{
+	try {
+		{
+			sqlite::stmt stmt(::db);
+
+			stmt.exec("DROP TABLE IF EXISTS t");
+			stmt.exec("CREATE TABLE t (a INT, b FLOAT, c TEXT)");
+
+			stmt.prepare("INSERT INTO t VALUES (?, ?, ?)");
+			stmt[0] = 123; // calls sqlite3_bind_int(stmt, 0 + 1, 123);
+			stmt[1] = 1.23;
+			stmt[2] = "str";
+			stmt.step();
+
+			stmt.prepare("SELECT * FROM t");
+			stmt.step();
+			assert(stmt[0] == 123);
+			assert(stmt["b"] == 1.23); // lookup by name
+			assert(stmt[2] == "str");
+
+			assert(SQLITE_DONE == stmt.step());
+		}
+	}
+	catch (const std::exception& ex) {
+		std::cerr << ex.what() << '\n';
+	}
+
+	return 0;
+}
+int simple_test = test_simple();
+
+int test_boolean()
+{
+	try {
+		{
+			sqlite::stmt stmt(::db);
+			stmt.exec("DROP TABLE IF EXISTS t");
+			stmt.exec("CREATE TABLE t (b BOOLEAN)");
+			stmt.exec("INSERT INTO t (b) VALUES(TRUE)");
+
+			stmt.reset();
+			stmt.prepare("SELECT * FROM t");
+			stmt.step();
+			assert(stmt[0].column_type() == SQLITE_INTEGER);
+			assert(stmt[0].type() == SQLITE_BOOLEAN);
+			assert(stmt[0] == true);
+			assert(stmt[0].as_boolean());
+
+			assert(SQLITE_DONE == stmt.step());
+
+			stmt.exec("UPDATE t SET b = FALSE WHERE b = TRUE");
+			stmt.prepare("SELECT * FROM t");
+			stmt.step();
+			assert(stmt[0].column_type() == SQLITE_INTEGER);
+			assert(stmt[0].type() == SQLITE_BOOLEAN);
+			assert(stmt[0] == false);
+			assert(!stmt[0].as_boolean());
+
+			assert(SQLITE_DONE == stmt.step());
+		}
+	}
+	catch (const std::exception& ex) {
+		std::cerr << ex.what() << '\n';
+	}
+
+	return 0;
+}
+int boolean_test = test_boolean();
+
+int test_datetime()
+{
+	try {
+		{
+			sqlite::stmt stmt(::db);
+			stmt.exec("DROP TABLE IF EXISTS dt");
+			stmt.exec("CREATE TABLE dt (t DATETIME)");
+			// sqlite doesn't recognize this
+			stmt.exec("INSERT INTO dt (t) VALUES('1970-1-2')");
+
+			stmt.reset();
+			stmt.prepare("SELECT t FROM dt");
+			stmt.step();
+			assert(stmt[0].column_type() == SQLITE_TEXT);
+			assert(stmt[0].type() == SQLITE_DATETIME);
+			datetime t = stmt[0].as_datetime();
+			// sqlite will store the string
+			assert(t == datetime("1970-1-2"));
+
+			assert(SQLITE_DONE == stmt.step());
+
+			stmt.prepare("SELECT unixepoch(t) FROM dt");
+			stmt.step();
+			t = stmt[0].as_datetime();
+			// but it can't parse it
+			assert(t.type == SQLITE_INTEGER);
+			assert(t.value.i == -1);
+
+			assert(SQLITE_DONE == stmt.step());
+
+			// sqlite wants an ISO 8602 date
+			stmt.exec("UPDATE dt SET t = '1970-01-02'");
+			stmt.prepare("SELECT unixepoch(t) FROM dt");
+			stmt.step();
+			t = stmt[0].as_datetime();
+			assert(t.type == SQLITE_INTEGER);
+			// one day past unix epoch in seconds
+			assert(t.value.i == 24*60*60);
+
+			assert(SQLITE_DONE == stmt.step());
+
+			stmt.prepare("UPDATE dt SET t = ?");
+			datetime dt("1970-1-2");
+			dt.as_time_t(); // call fms::parse_tm 
+			stmt.bind(1, dt);
+			stmt.step();
+			stmt.prepare("SELECT t FROM dt");
+			stmt.step();
+			assert(stmt.column_type(0) == SQLITE_INTEGER);
+			assert(stmt[0] == 86400);
+
+			/*
+			stmt.prepare("SELECT julianday(t) FROM dt");
+			stmt.step();
+			t = stmt[0].as_datetime();
+			assert(t.type == SQLITE_FLOAT);
+			// one day past unix epoch in days
+			assert(t.value.f - 2440587.5 == 1);
+
+			assert(SQLITE_DONE == stmt.step());
+			*/
+		}
+	}
+	catch (const std::exception& ex) {
+		std::cerr << ex.what() << '\n';
+	}
+
+	return 0;
+}
+int datetime_test = test_datetime();
+
 void insert(sqlite3* db)
 {
 	sqlite::stmt stmt(db);
-	stmt.prepare("CREATE TABLE t (a INT, b FLOAT, c TEXT, d DATETIME)");
-	stmt.step();
+	stmt.exec("CREATE TABLE t (a INT, b FLOAT, c TEXT, d DATETIME)");
 
-	stmt.reset();
 	stmt.prepare("INSERT INTO t VALUES "
 		"(1, .2, 'a', '2023-04-05'),"
 		"(3, .4, 'b', '2023-04-06');"
@@ -19,18 +161,24 @@ void insert(sqlite3* db)
 	stmt.step();
 }
 
-void print(sqlite::stmt& stmt)
+int test_copy()
 {
-	
-	iterable i(stmt);
+	std::ostringstream s;
+
+	insert(::db);
+	sqlite::stmt stmt(::db);
+
+	cursor i(stmt);
 	iterator _i = *i;
-	std::copy(_i.begin(), _i.end(), std::ostream_iterator<sqlite::value>(std::cout, ", "));
-	std::cout << '\n';
+	std::copy(_i.begin(), _i.end(), std::ostream_iterator<sqlite::value>(s, ", "));
+	auto str = s.str();
 	copy(_i, std::ostream_iterator<sqlite::value>(std::cout, ", "));
 	std::cout << '\n';
 	copy(i, std::ostream_iterator<sqlite::value>(std::cout, ", "));
 	
+	return 0;
 }
+int copy_test = test_copy();
 
 int main()
 {
@@ -38,13 +186,6 @@ int main()
 		fms::parse_test<char>();
 		datetime::test();
 		stmt::test();
-
-		db db("");
-		insert(db);
-
-		stmt stmt(db);
-		stmt.prepare("select * from t");
-		print(stmt);
 	}
 	catch (const std::exception& ex) {
 		puts(ex.what());

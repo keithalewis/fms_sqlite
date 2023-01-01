@@ -5,6 +5,7 @@
 #include <ctype.h>
 #include <ctime>
 #include <cstring>
+#include <compare>
 #include <limits>
 #include <algorithm>
 #include <tuple>
@@ -14,7 +15,7 @@
 	#define	_gmtime64_s(x, y) gmtime_r(y, x);
 	#define _gmtime64(x) gmtime(x)
 	#define _mkgmtime64 timegm
-	#define __FUNCTION__ 
+	#define __FUNCTION__ (__func__)
 	#define _stricmp(x, y) strcasecmp(x,y)
 #endif
 
@@ -22,13 +23,21 @@ namespace fms {
 	// len < 0 is error
 	template<class T>
 	struct view {
-		static T length(const T* t, int len = 0)
+		static int length(const T* t, int len = -1)
 		{
-			while (t and *t++) {
-				++len;
+			int n = 0;
+
+			if (!t) {
+				return -1;
+			}
+			while (len == -1 or len--) {
+				if (0 == *t++) {
+					break;
+				}
+				++n;
 			}
 
-			return len;
+			return n;
 		}
 		T* buf;
 		int len;
@@ -44,7 +53,26 @@ namespace fms {
 		template<size_t N>
 		view(T(&buf)[N])
 			: view(buf, N - 1)
-		{ }
+		{
+			int n = length(buf, len);
+			if (n >= 0) {
+				len = n;
+			}
+		}
+
+
+		int compare(const view& w) const
+		{
+			if (len != w.len) {
+				return w.len - len;
+			}
+				
+			return memcmp(buf, w.buf, len * sizeof(T));
+		}
+		auto operator<=>(const view & w) const
+		{
+			return compare(w) <=> 0;
+		}
 
 		operator bool() const
 		{
@@ -76,12 +104,7 @@ namespace fms {
 			return t;
 		}
 
-		bool equal(const view& w) const
-		{
-			return len >= 0 && w.len >= 0 && len == w.len
-				&& 0 == memcmp(buf, w.buf, len * sizeof(T));
-		}
-
+		// use negative len to indicate error
 		bool is_error() const
 		{
 			return len < 0;
@@ -126,7 +149,7 @@ namespace fms {
 
 		bool eat(T t)
 		{
-			if (len && *buf == t) {
+			if (len and *buf == t) {
 				operator++();
 
 				return true;
@@ -134,44 +157,27 @@ namespace fms {
 
 			return false;
 		}
-		bool eat_all(const T* ts, int nts)
+		bool eat_all(const T* ts, int nts = -1)
 		{
-			while (nts--) {
+			while ((nts == -1 and *ts) or nts--) {
 				if (!eat(*ts++)) return false;
 			}
 
 			return true;
 		}
-		// null terminated
-		bool eat_all(const T* ts)
-		{
-			if (!ts || !*ts) {
-				return true;
-			}
 
-			return eat(*ts) && eat_all(++ts);
-		}
-
-		bool eat_any(const T* ts, int nts)
+		bool eat_any(const T* ts, int nts = -1)
 		{
-			while (nts--) {
+			while ((nts == -1 and *ts) or nts--) {
 				if (eat(*ts++)) return true;
 			}
 
 			return false;
 		}
-		bool eat_any(const T* ts)
-		{
-			if (!ts || !*ts) {
-				return false;
-			}
-
-			return eat(*ts) || eat_any(++ts);
-		}
 
 		view& eat_ws()
 		{
-			while (len && isspace(*buf)) {
+			while (len and isspace(*buf)) {
 				operator++();
 			}
 
@@ -198,13 +204,13 @@ namespace fms {
 		int i = 0;
 		int sgn = 1;
 
-		if (v.len && *v == '-') {
+		if (v.len and *v == '-') {
 			sgn = -1;
 			v.eat('-');
 		}
 		v.eat('+');
 
-		while (v.len && isdigit(*v)) {
+		while (v.len and isdigit(*v)) {
 			if (max <= 0) {
 				v = v.error();
 
@@ -278,29 +284,27 @@ namespace fms {
 		std::remove_const_t<T> sep = 0;
 
 		y = parse_int(v, 1, 4);
-		if (!v) goto parse_ymd_done;
+		if (!v) return { y, m, d };
 
 		sep = *v;
-		if (sep != '-' && sep != '/') {
+		if (sep != '-' and sep != '/') {
 			v = v.error();
-			goto parse_ymd_done;
+			return { y, m, d };
 		}
 		if (!v.eat(sep)) {
 			v = v.error();
-			goto parse_ymd_done;
+			return { y, m, d };
 		}
 
 		m = parse_int(v, 1, 2);
-		if (v.error()) goto parse_ymd_done;
+		if (v.error()) return { y, m, d };
 
 		if (!v.eat(sep)) {
 			v = v.error();
-			goto parse_ymd_done;
+			return { y, m, d };
 		}
 
 		d = parse_int(v, 1, 2);
-
-	parse_ymd_done:
 
 		return { y, m, d };
 	}
@@ -312,29 +316,28 @@ namespace fms {
 		int h = 0, m = 0, s = 0;
 
 		h = parse_int(v, 1, 2);
-		if (!v) goto parse_hms_done;
+		if (!v) return { h, m, s };
 
 		if (!v.eat(':')) {
 			v = v.error();
-			goto parse_hms_done;
+			return { h, m, s };
 		}
 
 		m = parse_int(v, 1, 2);
-		if (!v) goto parse_hms_done;
+		if (!v) return { h, m, s };
 
 		if (!v.eat(':')) {
 			v = v.error();
-			goto parse_hms_done;
+			return { h, m, s };
 		}
 
 		s = parse_int(v, 1, 2);
-
-	parse_hms_done:
 
 		return { h, m, s };
 	}
 
 	// parse datetime string into struct tm
+	// yyyy-mm-dd[ hh:mm::ss[[+-]dddd]]
 	template<class T>
 	inline bool parse_tm(fms::view<T>& v, tm* ptm)
 	{
@@ -356,7 +359,7 @@ namespace fms {
 		if (!v.len) return true;
 		if (!v) return false;
 
-		if (!v.eat(' ') && !v.eat('T')) {
+		if (!v.eat(' ') and !v.eat('T')) {
 			v = v.error();
 			return false;
 		}
@@ -368,6 +371,43 @@ namespace fms {
 		ptm->tm_min = mm;
 		ptm->tm_sec = ss;
 		if (v.is_error()) return false;
+
+		// [+-]dddd timezone offset
+		if (v.len) {
+			if (v.eat('.')) { // ignore fractional seconds
+				if (!isdigit(*v)) {
+					v = v.error();
+					return false;
+				}
+				parse_int(v);
+				if (v.error()) {
+					return false;
+				}
+			}
+			if (v.eat('Z')) { // Zulu
+				return true;
+			}
+			int sgn = 1;
+			if (v.eat('-')) {
+				sgn = -1;
+			}
+			else if (!v.eat('+')) {
+				v = v.error();
+				return false;
+			}
+			int tz = parse_int(v);
+			if (tz >= 10000) {
+				v = v.error();
+				return false;
+			}
+			if (tz < 100) {
+				ptm->tm_hour += sgn * tz;
+			}
+			else {
+				ptm->tm_min += sgn * tz % 100;
+				ptm->tm_hour += sgn * tz / 100;
+			}
+		}
 
 		return true;
 	}
@@ -384,25 +424,25 @@ namespace fms {
 			assert(!v);
 			view<T> v2{ v };
 			assert(!v2);
-			assert(v.equal(v2));
+			assert(v == v2);
 			v = v2;
 			assert(!v);
-			assert(v2.equal(v));
+			assert(v2 == v);
 		}
 		{
 			T buf[] = { 'a', 'b', 'c' };
 			view v(buf, 3);
 			assert(v.len == 3);
 
-			assert(drop(v, 0).equal(v));
+			assert(drop(v, 0) == v);
 			assert(!drop(v, 3));
-			assert(drop(v, 1).equal(view(buf + 1, 2)));
-			assert(drop(v, -1).equal(view(buf, 2)));
+			assert(drop(v, 1) == view(buf + 1, 2));
+			assert(drop(v, -1) == view(buf, 2));
 
-			assert(take(v, 3).equal(v));
+			assert(take(v, 3) == v);
 			assert(!take(v, 0));
-			assert(take(v, 1).equal(view(buf, 1)));
-			assert(take(v, -1).equal(view(buf + 2, 1)));
+			assert(take(v, 1) == view(buf, 1));
+			assert(take(v, -1) == view(buf + 2, 1));
 		}
 		{
 			T buf[] = {'1', '2', '3'};
@@ -427,19 +467,19 @@ namespace fms {
 			T buf[] = { '1', '2', 'c' };
 			view v(buf, 3);
 			assert(12 == parse_int(v));
-			assert(v && 'c' == *v);
+			assert(v and 'c' == *v);
 		}
 		{
 			T buf[] = { '1', '2', 'c' };
 			view v(buf, 3);
 			assert(12 == parse_int(v, 2, 2));
-			assert(v && 'c' == *v);
+			assert(v and 'c' == *v);
 		}
 		{
 			T buf[] = { '1', '2', 'c' };
 			view v(buf, 3);
 			assert(INT_MAX == parse_int(v, 0, 1));
-			assert(!v && '2' == *v.error_msg());
+			assert(!v and '2' == *v.error_msg());
 		}
 		{
 			const char date[] = "2022-01-02 3:04:5Z";
@@ -485,6 +525,56 @@ namespace fms {
 			_gmtime64_s(&tm, &u);
 			assert(tm.tm_hour == 0);
 			assert(tm.tm_min == 0);
+			assert(tm.tm_sec == 0);
+		}
+		{
+			const char* buf = "2022-1-1T0:0:0.-0Z";
+			view<const char> v(buf);
+			tm tm;
+			assert(!parse_tm(v, &tm));
+		}
+		{
+			const char* buf = "2022-1-1T0:0:0.0+1";
+			view<const char> v(buf);
+			tm tm;
+			assert(parse_tm(v, &tm));
+			time_t u = _mkgmtime64(&tm);
+			_gmtime64_s(&tm, &u);
+			assert(tm.tm_hour == 1);
+			assert(tm.tm_min == 0);
+			assert(tm.tm_sec == 0);
+		}
+		{
+			const char* buf = "2022-1-1T0:0:0.0-1";
+			view<const char> v(buf);
+			tm tm;
+			assert(parse_tm(v, &tm));
+			time_t u = _mkgmtime64(&tm);
+			_gmtime64_s(&tm, &u);
+			assert(tm.tm_hour == 23);
+			assert(tm.tm_min == 0);
+			assert(tm.tm_sec == 0);
+		}
+		{
+			const char* buf = "2022-1-1T0:0:0.0+0130";
+			view<const char> v(buf);
+			tm tm;
+			assert(parse_tm(v, &tm));
+			time_t u = _mkgmtime64(&tm);
+			_gmtime64_s(&tm, &u);
+			assert(tm.tm_hour == 1);
+			assert(tm.tm_min == 30);
+			assert(tm.tm_sec == 0);
+		}
+		{
+			const char* buf = "2022-1-1T0:0:0.0-0130";
+			view<const char> v(buf);
+			tm tm;
+			assert(parse_tm(v, &tm));
+			time_t u = _mkgmtime64(&tm);
+			_gmtime64_s(&tm, &u);
+			assert(tm.tm_hour == 22);
+			assert(tm.tm_min == 30);
 			assert(tm.tm_sec == 0);
 		}
 

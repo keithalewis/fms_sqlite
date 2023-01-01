@@ -4,16 +4,29 @@ A breviloquent C++ wrapper for the sqlite C API.
 
 ## Usage
 
-Create a new, or open an existing. sqlite database with `sqlite::db db(file, flags)`.
+Create a new, or open an existing, sqlite database with 
+[`sqlite::db db(file, flags)`](https://www.sqlite.org/c3ref/open.html).
 Use `sqlite::db db("")` to create a temporary in-memory database.
+Its destructor calls [`sqlite_close`](https://www.sqlite.org/c3ref/close.html).
+Its copy constructor and copy assignement operators are deleted to
+ensure its destructor is only called once. 
+It provides `operator sqlite3*() const` to make it convenient to call any sqlite C API function.
+There are many functions in the C API this library does not have wrappers for.
 
-Create a sqlite statement with `sqlite::stmt stmt(db)`.
+Create a sqlite statement with [`sqlite::stmt stmt(db)`](https://www.sqlite.org/c3ref/stmt.html)
+to execute SQL commands on a database.
 
 Compile a SQL statement with `stmt.prepare(sql)` and call `stmt.bind(index, value)`
-to set parameters.
+to set `?` parameters if necessary. The index is 1-based.
+Use `stmt.bind("name", value)` for `@name` parameters.
 
-Run the SQL statement using `stmt.step()`. If it returns `SQLITE_ROW`
-then keep calling `stmt.step()` until it returns `SQLITE_DONE`.
+Execute the SQL statement using `stmt.step()`. If it returns `SQLITE_ROW`
+keep calling `stmt.step()` until it returns `SQLITE_DONE`.
+
+The class `sqlite::stmt` publicly inherits from `sqlite::values`.
+This class implements `values::column_`_type_ which calls `sqlite3_column_`_type_ 
+and `sqlite3_bind_`_type` which calls `sqlite3_bind_`_type_
+for fundamental and extended types.
 
 The columns of a statement can be accessed with `sqlite::value(stmt, i)`.
 Use `sqlite::value::sqltype()` to detect the declared type and 
@@ -21,7 +34,7 @@ Use `sqlite::value::sqltype()` to detect the declared type and
 `sqlite::value::type()` returns the the fundamental type used to store the value.
 
 To iterate over all rows returned by a query use `sqlite::stmt::iterable i(stmt)`.
-It implement `explicit operator bool() const` to detect when there
+It implements `explicit operator bool() const` to detect when there
 are no more results. 
 
 ```
