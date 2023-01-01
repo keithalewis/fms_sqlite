@@ -1099,8 +1099,9 @@ namespace sqlite {
 		return o;
 	}
 	template<class O, class F>
-	inline O map(sqlite::cursor i, O o, F f)
+	inline O map(sqlite::stmt& stmt, O o, F f)
 	{
+		sqlite::cursor i(stmt);
 		while (i) {
 			sqlite::iterator _i = *i;
 			map(_i, o, f);
