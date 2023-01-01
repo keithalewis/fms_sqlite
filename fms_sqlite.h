@@ -120,7 +120,7 @@ namespace sqlite {
 	{
 		return quote(name, '[', ']');
 	}
-	// surround variable name with `'name'`
+	// surround variable name with `'var'`
 	inline std::string variable_name(const std::string_view& var)
 	{
 		return quote(var, '\'');
@@ -319,7 +319,7 @@ namespace sqlite {
 	};
 
 	// View of a sqlite statement.
-	// Wrap bind functions to throw on error.
+	// Bind functions to throw on error.
 	// Raw sqlite3_column_xxx functions used in `value`.
 	class values {
 	protected:
@@ -380,14 +380,14 @@ namespace sqlite {
 		}
 
 		// int 
-		values bind(int i, int j)
+		values& bind(int i, int j)
 		{
 			FMS_SQLITE_OK(db_handle(), sqlite3_bind_int(pstmt, i, j));
 
 			return *this;
 		}
 		// int64
-		values bind(int i, int64_t j)
+		values& bind(int i, int64_t j)
 		{
 			FMS_SQLITE_OK(db_handle(), sqlite3_bind_int64(pstmt, i, j));
 
@@ -396,26 +396,26 @@ namespace sqlite {
 
 		// text, make copy by default
 		// Use SQLITE_STATIC if str will live until sqlite3_step is called.
-		values bind(int i, const std::string_view& str, void(*cb)(void*) = SQLITE_TRANSIENT)
+		values& bind(int i, const std::string_view& str, void(*cb)(void*) = SQLITE_TRANSIENT)
 		{
 			FMS_SQLITE_OK(db_handle(), sqlite3_bind_text(pstmt, i, str.data(),
 				static_cast<int>(str.size()), cb));
 
 			return *this;
 		}
-		values bind(int i, const char* str, void(*cb)(void*) = SQLITE_TRANSIENT)
+		values& bind(int i, const char* str, void(*cb)(void*) = SQLITE_TRANSIENT)
 		{
 			return bind(i, std::string_view(str), cb);
 		}
 		// text16 with length in characters
-		values bind(int i, const std::wstring_view& str, void(*cb)(void*) = SQLITE_TRANSIENT)
+		values& bind(int i, const std::wstring_view& str, void(*cb)(void*) = SQLITE_TRANSIENT)
 		{
 			FMS_SQLITE_OK(db_handle(), sqlite3_bind_text16(pstmt, i, (const void*)str.data(),
 				static_cast<int>(2 * str.size()), cb));
 
 			return *this;
 		}
-		values bind(int i, const wchar_t* str, void(*cb)(void*) = SQLITE_TRANSIENT)
+		values& bind(int i, const wchar_t* str, void(*cb)(void*) = SQLITE_TRANSIENT)
 		{
 			return bind(i, std::wstring_view(str), cb);
 		}
@@ -424,14 +424,14 @@ namespace sqlite {
 		// extended types
 		//
 
-		values bind(int i, bool b)
+		values& bind(int i, bool b)
 		{
 			FMS_SQLITE_OK(db_handle(), sqlite3_bind_int(pstmt, i, b));
 
 			return *this;
 		}
 
-		values bind(int i, const datetime& dt)
+		values& bind(int i, const datetime& dt)
 		{
 			switch (dt.type) {
 			case SQLITE_FLOAT:
@@ -497,6 +497,10 @@ namespace sqlite {
 			return -1; // out-of-range lookup returns NULL
 		}
 
+		//
+		// Raw sqlite3_column_xxx wrappers
+		//
+
 		// bytes, not chars
 		int column_bytes(int j) const
 		{
@@ -547,6 +551,7 @@ namespace sqlite {
 		{
 			return column_int(j) != 0;
 		}
+
 		datetime column_datetime(int j) const
 		{
 			switch (column_type(j)) {
@@ -593,7 +598,10 @@ namespace sqlite {
 			return vs.type(i);
 		}
 
-		// correspond to SQLITE_* types
+		//
+		// Prettified access to corresponding raw SQLITE_* types
+		//
+
 		double as_float() const
 		{
 			return vs.column_double(i);
@@ -817,9 +825,7 @@ namespace sqlite {
 		stmt& operator=(const stmt& _stmt) = delete;
 		~stmt()
 		{
-			if (pstmt) {
-				sqlite3_finalize(pstmt);
-			}
+			sqlite3_finalize(pstmt);
 		}
 
 		// https://www.sqlite.org/c3ref/expanded_sql.html

@@ -4,6 +4,11 @@ A breviloquent C++ wrapper for the sqlite C API.
 
 ## Usage
 
+This library does not wrap all of the functions in the sqlite C API,
+but it does make it convenient to call them and control memory allocation.
+
+### `sqlite::db`
+
 Create a new, or open an existing, sqlite database with 
 [`sqlite::db db(file, flags)`](https://www.sqlite.org/c3ref/open.html).
 Use `sqlite::db db("")` to create a temporary in-memory database.
@@ -14,6 +19,8 @@ It provides `operator sqlite3*() const` to make it convenient to call any sqlite
 by passing a `sqlite::db` object.
 One feature of this library is there are many functions in the sqlite C API
 it does not have wrappers for.
+
+### `sqlite::stmt`
 
 Create a sqlite statement with [`sqlite::stmt stmt(db)`](https://www.sqlite.org/c3ref/stmt.html)
 to execute SQL commands on a database.
@@ -31,16 +38,25 @@ Use `stmt.bind("name", value)` for `@name` parameters in the prepared statement.
 Execute the SQL statement using `stmt.step()`. If it returns `SQLITE_ROW`
 keep calling `stmt.step()` until it returns `SQLITE_DONE`.
 
+### `sqlite::values`
+
 The class `sqlite::stmt` publicly inherits from `sqlite::values` to provide
 a view on statments. It assumes the lifetime of the statement used to construct it.
-This class implements `values::column_`_type_ which calls `sqlite3_column_`_type_ 
-and `sqlite3_bind_`_type` which calls `sqlite3_bind_`_type_
-for fundamental and extended types.
+It implments copy constructor and copy assignment by default to copy the
+statement pointer. The destructor is a no-op, just like for any view type.
 
-The columns of a statement can be accessed with another view class `sqlite::value(stmt, i)`.
+This class implements `values::column_`_type_ which call the raw `sqlite3_column_`_type_ 
+and `sqlite3_bind_`_type_ which calls `sqlite3_bind_`_type_
+for fundamental and extended types. 
+
+### `sqlite::value`
+
+The columns of a statement can be accessed with another view class `sqlite::value(stmt, i)`,
+where `i` is the 0-based index.
 Use `sqlite::value::type()` to detect the declared type and 
 `sqlite::value::as`_type_ to retreive data as _type_. The function
 `sqlite::value::column_type()` returns the the fundamental type used to store the value.
+To bind a value use `template<typename T> operator=(const T&)`.
 
 To iterate over all rows returned by a query use `sqlite::stmt::iterable i(stmt)`.
 It implements `explicit operator bool() const` to detect when there
