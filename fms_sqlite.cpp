@@ -188,9 +188,9 @@ int copy_test = test_copy();
 int main()
 {
 	try {
-		//fms::parse_test<char>();
-		//datetime::test();
-		//stmt::test();
+		fms::parse_test<char>();
+		datetime::test();
+		stmt::test();
 	}
 	catch (const std::exception& ex) {
 		puts(ex.what());
