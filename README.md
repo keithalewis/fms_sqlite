@@ -193,7 +193,7 @@ This libary endeavours to provide the thinest possible C++ API to the sqlite C A
 sqlite::db db(""); // create an in-memory database
 sqlite::stmt stmt(db); // calls operator sqlite3*() on db
 
-stmt.exec("CREATE TABLE t (a INT, b FLOAT, c TEXT)");
+stmt.exec("CREATE TABLE t (a INTEGER, b FLOAT, c TEXT)");
 
 stmt.prepare("INSERT INTO t VALUES (?, ?, ?)");
 stmt[0] = 123; // calls sqlite3_bind_int(stmt, 0 + 1, 123);
