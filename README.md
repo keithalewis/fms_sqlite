@@ -187,7 +187,7 @@ from the wild into valid dates. See [Posel's law](https://en.wikipedia.org/wiki/
 
 ## Example
 
-This libary endeavours to provide the thinest possible C++ API
+This libary endeavours to provide the thinest possible C++ API to the sqlite C API.
 
 ```
 sqlite::db db(""); // create an in-memory database
@@ -208,7 +208,7 @@ assert(stmt["b"] == 1.23); // lookup by name
 assert(stmt[2] == "str");
 
 assert(SQLITE_DONE == stmt.step());
-}
+
 ```
 
 Note we first iterate over rows, then iterate over columns.
