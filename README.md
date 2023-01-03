@@ -15,7 +15,8 @@ similar to [linear types](https://ncatlab.org/nlab/show/linear+type+theory).
 They provide `operator sqlite3*() const` and `operator sqlite3_stmt*() const` member functions
 so they can be passed as arguments to `sqlite3_*` C functions.
 
-There are many high quality implementations of C++ wrappers for SQLite.
+There are many [high quality implementations](http://srombauts.github.io/SQLiteCpp/)
+of C++ wrappers for SQLite.
 I reviewed those before writing this library and am grateful to the open source
 library creators who allow others to leverage off their excellent work.
 It seems everyone who looks closely at SQLite finds
@@ -246,7 +247,7 @@ stmt.prepare("INSERT INTO t VALUES (?, ?, ?)");
 stmt[0] = 123; // calls sqlite3_bind_int(stmt, 0 + 1, 123);
 stmt[1] = 1.23;
 stmt[2] = "str";
-stmt.step();
+assert(SQLITE_DONE == stmt.step());
 
 stmt.prepare("SELECT * FROM t");
 stmt.step();

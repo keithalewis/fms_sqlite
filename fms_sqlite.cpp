@@ -16,10 +16,10 @@ int test_simple()
 			stmt.exec("DROP TABLE IF EXISTS t");
 			stmt.exec("CREATE TABLE t (a INT, b FLOAT, c TEXT)");
 
-			stmt.prepare("INSERT INTO t VALUES (?, ?, ?)");
+			stmt.prepare("INSERT INTO t VALUES (?, ?, :c)");
 			stmt[0] = 123; // calls sqlite3_bind_int(stmt, 0 + 1, 123);
 			stmt[1] = 1.23;
-			stmt[2] = "str";
+			stmt[":c"] = "str"; // bind parameter name
 
 			assert(SQLITE_DONE == stmt.step());
 

@@ -1019,7 +1019,19 @@ namespace sqlite {
 		}
 		sqlite::value operator[](const char* name) const
 		{
-			return sqlite::value(pstmt, column_index(name));
+			int i = 0;
+
+			if (!name) {
+				i = -1;
+			}
+			else if (0 != strchr(":@$", *name)) {
+				i = bind_parameter_index(name) - 1;
+			}
+			else {
+				i = column_index(name);
+			}
+
+			return sqlite::value(pstmt, i);
 		}
 
 		// https://www.sqlite.org/c3ref/bind_parameter_index.html
