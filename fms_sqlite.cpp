@@ -8,7 +8,6 @@ using namespace sqlite;
 
 sqlite::db db(""); // in-memory database
 
-
 int test_simple()
 {
 	try {
@@ -21,7 +20,8 @@ int test_simple()
 			stmt[0] = 123; // calls sqlite3_bind_int(stmt, 0 + 1, 123);
 			stmt[1] = 1.23;
 			stmt[2] = "str";
-			stmt.step();
+
+			assert(SQLITE_DONE == stmt.step());
 
 			stmt.prepare("SELECT * FROM t");
 			stmt.step();
@@ -53,7 +53,7 @@ int test_boolean()
 			stmt.prepare("SELECT * FROM t");
 			stmt.step();
 			assert(stmt[0].column_type() == SQLITE_INTEGER);
-			assert(stmt[0].type() == SQLITE_BOOLEAN);
+			assert(stmt[0].sqltype() == SQLITE_BOOLEAN);
 			assert(stmt[0] == true);
 			assert(stmt[0].as_boolean());
 
@@ -63,7 +63,7 @@ int test_boolean()
 			stmt.prepare("SELECT * FROM t");
 			stmt.step();
 			assert(stmt[0].column_type() == SQLITE_INTEGER);
-			assert(stmt[0].type() == SQLITE_BOOLEAN);
+			assert(stmt[0].sqltype() == SQLITE_BOOLEAN);
 			assert(stmt[0] == false);
 			assert(!stmt[0].as_boolean());
 
@@ -93,7 +93,7 @@ int test_datetime()
 			stmt.prepare("SELECT t FROM dt");
 			stmt.step();
 			assert(stmt[0].column_type() == SQLITE_TEXT);
-			assert(stmt[0].type() == SQLITE_DATETIME);
+			assert(stmt[0].sqltype() == SQLITE_DATETIME);
 			datetime t = stmt[0].as_datetime();
 			
 			// sqlite will store the string
@@ -124,7 +124,7 @@ int test_datetime()
 
 			stmt.prepare("UPDATE dt SET t = ?");
 			datetime dt("1970-1-2");
-			dt.as_time_t(); // call fms::parse_tm 
+			dt.to_time_t(); // call fms::parse_tm 
 			stmt.bind(1, dt);
 			stmt.step();
 			stmt.prepare("SELECT t FROM dt");
@@ -190,6 +190,8 @@ int main()
 	try {
 		fms::parse_test<char>();
 		datetime::test();
+		values::test();
+		value::test();
 		stmt::test();
 	}
 	catch (const std::exception& ex) {
