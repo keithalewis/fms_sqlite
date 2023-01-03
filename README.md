@@ -4,6 +4,26 @@ A breviloquent header only C++ wrapper for the SQLite C API.
 
 On linuxy platforms with g++ type `make check` to build tests and run valgrind.
 
+```
+sqlite::db db(""); // in-memory database
+sqlite::stmt stmt(::db);
+stmt.exec("DROP TABLE IF EXISTS t");
+stmt.exec("CREATE TABLE t (a INT, b FLOAT, c TEXT)");
+
+stmt.prepare("INSERT INTO t VALUES (?, ?, :c)");
+stmt[0] = 123; // calls sqlite3_bind_int(stmt, 0 + 1, 123);
+stmt[1] = 1.23;
+stmt[":c"] = "str"; // bind parameter name
+assert(SQLITE_DONE == stmt.step());
+
+stmt.prepare("SELECT * FROM t");
+stmt.step();
+assert(stmt[0] == 123);
+assert(stmt["b"] == 1.23); // lookup by column name
+assert(stmt[2] == "str");
+assert(SQLITE_DONE == stmt.step());
+```
+
 ## Usage
 
 This library does not wrap all of the functions in the SQLite C API
