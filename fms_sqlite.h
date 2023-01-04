@@ -50,9 +50,9 @@ X("NATIVE CHARACTER", "TEXT", SQLITE_TEXT, 2) \
 X("NVARCHAR", "TEXT", SQLITE_TEXT, 2) \
 X("CLOB", "TEXT", SQLITE_TEXT, 2) \
 X("BLOB", "BLOB", SQLITE_BLOB, 3) \
+X("DOUBLE", "REAL", SQLITE_FLOAT, 4) \
 X("DOUBLE PRECISION", "REAL", SQLITE_FLOAT, 4) \
 X("REAL", "REAL", SQLITE_FLOAT, 4) \
-X("DOUBLE", "REAL", SQLITE_FLOAT, 4) \
 X("FLOAT", "REAL", SQLITE_FLOAT, 4) \
 X("NUMERIC", "NUMERIC", SQLITE_NUMERIC, 5) \
 X("DECIMAL", "NUMERIC", SQLITE_NUMERIC, 5) \
@@ -890,6 +890,15 @@ namespace sqlite {
 		{ }
 
 		bool operator==(const iterator&) const = default;
+
+		int sqltype() const
+		{
+			return vs.sqltype(i);
+		}
+		int size() const
+		{
+			return e;
+		}
 
 		// STL friendly
 		iterator begin() const

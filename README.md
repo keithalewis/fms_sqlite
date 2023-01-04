@@ -260,13 +260,12 @@ This library endeavors to provide the thinnest possible C++ API to the SQLite C 
 ```
 sqlite::db db(""); // create an in-memory database
 sqlite::stmt stmt(db); // calls operator sqlite3*() on db
+stmt.exec("CREATE TABLE t (a INT, b FLOAT, c TEXT)");
 
-stmt.exec("CREATE TABLE t (a INTEGER, b FLOAT, c TEXT)");
-
-stmt.prepare("INSERT INTO t VALUES (?, ?, ?)");
+stmt.prepare("INSERT INTO t VALUES (?, ?, :c)");
 stmt[0] = 123; // calls sqlite3_bind_int(stmt, 0 + 1, 123);
 stmt[1] = 1.23;
-stmt[2] = "str";
+stmt[":c"] = "str"; // bind parameter name
 assert(SQLITE_DONE == stmt.step());
 
 stmt.prepare("SELECT * FROM t");
@@ -274,9 +273,7 @@ stmt.step();
 assert(stmt[0] == 123);
 assert(stmt["b"] == 1.23); // lookup by name
 assert(stmt[2] == "str");
-
 assert(SQLITE_DONE == stmt.step());
-
 ```
 
 Note we first iterate over rows, then iterate over columns.
