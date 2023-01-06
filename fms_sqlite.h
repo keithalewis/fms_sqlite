@@ -275,7 +275,7 @@ namespace sqlite {
 		}
 	};
 
-	// RAII class for sqlite3* database handle
+	// RAII class for sqlite3* database handle.
 	class db {
 		sqlite3* pdb;
 	public:
@@ -415,8 +415,8 @@ namespace sqlite {
 		// Use SQLITE_STATIC if str will live until sqlite3_step is called.
 		values& bind(int i, const std::string_view& str, void(*cb)(void*) = SQLITE_TRANSIENT)
 		{
-			FMS_SQLITE_OK(db_handle(), sqlite3_bind_text(pstmt, i, str.data(),
-				static_cast<int>(str.size()), cb));
+			FMS_SQLITE_OK(db_handle(), sqlite3_bind_text(pstmt, i, 
+				str.data(), static_cast<int>(str.size()), cb));
 
 			return *this;
 		}
@@ -427,14 +427,22 @@ namespace sqlite {
 		// text16 with length in characters
 		values& bind(int i, const std::wstring_view& str, void(*cb)(void*) = SQLITE_TRANSIENT)
 		{
-			FMS_SQLITE_OK(db_handle(), sqlite3_bind_text16(pstmt, i, (const void*)str.data(),
-				static_cast<int>(2 * str.size()), cb));
+			FMS_SQLITE_OK(db_handle(), sqlite3_bind_text16(pstmt, i, 
+				(const void*)str.data(), static_cast<int>(2 * str.size()), cb));
 
 			return *this;
 		}
 		values& bind(int i, const wchar_t* str, void(*cb)(void*) = SQLITE_TRANSIENT)
 		{
 			return bind(i, std::wstring_view(str), cb);
+		}
+
+		values& bind(int i, const std::basic_string_view<uint8_t>& b)
+		{
+			FMS_SQLITE_OK(db_handle(), sqlite3_bind_blob(pstmt, i, 
+				(const void*)b.data(), static_cast<int>(b.size()), nullptr));
+
+			return *this;
 		}
 
 		//
