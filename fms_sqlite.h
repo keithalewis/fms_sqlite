@@ -1256,19 +1256,14 @@ namespace sqlite {
 	}
 
 	// Wrap sql in a transaction.
-	inline void transaction(sqlite3* pdb, const std::string_view& sql)
+	inline void transaction(sqlite3* pdb, void(*op)())
 	{
 		sqlite::stmt stmt(pdb);
 		stmt.prepare("BEGIN TRANSACTION");
 		stmt.step();
 
 		try {
-			stmt.reset();
-			stmt.prepare(sql);
-			cursor i(stmt);
-			while (i) {
-				++i;
-			}
+			op();
 		}
 		catch (const std::exception&) {
 			stmt.reset();
