@@ -125,8 +125,7 @@ The SQLite function
 returns the fundamental type SQLite used to store data in the active statment
 using 0-based column `index`.
 
-The SQLite function 
-[`const char* sqlite3_column_decltype(pstmt, index)](https://sqlite.org/c3ref/column_decltype.html)
+The SQLite function [`const char* sqlite3_column_decltype(pstmt, index)`](https://sqlite.org/c3ref/column_decltype.html)
 returns the type of the table column declared in `CREATE TABLE`. The character string
 returned by this must be parsed in order to preserve the fidelity of boolean
 and datetime types.
