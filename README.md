@@ -107,8 +107,8 @@ their original types.
 
 ## `fms_sqlite.h`
 
-The file `fms_sqlite.h` defines `SQLITE_NUMERIC` so 
-[`int sqlite::affinity(const char*)`](https://sqlite.org/datatype3.html#determination_of_column_affinity). 
+The file `fms_sqlite.h` defines `SQLITE_NUMERIC` 
+so [`int sqlite::affinity(const char*)`](https://sqlite.org/datatype3.html#determination_of_column_affinity). 
 can be implemented based on the SQLite affinity algorithm for declared column types.
 
 It also defines the _extended types_ `SQLITE_BOOLEAN` and `SQLITE_DATETIME`.
