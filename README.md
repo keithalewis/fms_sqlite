@@ -107,8 +107,8 @@ their original types.
 
 ## `fms_sqlite.h`
 
-The file `fms_sqlite.h` defines `SQLITE_NUMERIC` so 
-[`int sqlite::affinity(const char*)`](https://sqlite.org/datatype3.html#determination_of_column_affinity). 
+The file `fms_sqlite.h` defines `SQLITE_NUMERIC` 
+so [`int sqlite::affinity(const char*)`](https://sqlite.org/datatype3.html#determination_of_column_affinity). 
 can be implemented based on the SQLite affinity algorithm for declared column types.
 
 It also defines the _extended types_ `SQLITE_BOOLEAN` and `SQLITE_DATETIME`.
@@ -125,8 +125,7 @@ The SQLite function
 returns the fundamental type SQLite used to store data in the active statment
 using 0-based column `index`.
 
-The SQLite function 
-[`const char* sqlite3_column_decltype(pstmt, index)](https://sqlite.org/c3ref/column_decltype.html)
+The SQLite function [`const char* sqlite3_column_decltype(pstmt, index)`](https://sqlite.org/c3ref/column_decltype.html)
 returns the type of the table column declared in `CREATE TABLE`. The character string
 returned by this must be parsed in order to preserve the fidelity of boolean
 and datetime types.
@@ -210,71 +209,4 @@ functions `I::type()` and `I::as`_xxx_ for all extended types.
 If it has an `I::name()` function that will be used to
 insert a value by name.
 
-
-## Compatibility
-
-One of the many reasons for SQLite's popularity is that it accommodates
-using SQL [CREATE TABLE](https://www3.sqlite.org/lang_createtable.html) 
-syntax encountered in the wild. 
-The type-name used in a 
-[column definition](https://www3.sqlite.org/syntax/column-def.html)
-is made available by  
-the function [`sqlite3_column_decltype`](https://www3.sqlite.org/c3ref/column_decltype.html).
-
-This is used when inserting or `CAST`ing values based on 
-[Column Affinity](https://sqlite.org/datatype3.html#determination_of_column_affinity).
-External types are converted to a fundamental SQLite type based on this, except for
-the quirky `NUMERIC` affinity to handle `DECIMAL(?,?)`, `BOOLEAN`, `DATE`,
-and `DATETIME` types.
-There is no definition of `SQLITE_NUMERIC` in the SQLite source code.
-
-
-### `SQLITE_BOOLEAN`
-
-A SQLite boolean is stored as an integer where non-zero indicates `true`.
-The function `sqlite_type` returns `SQLITE_BOOLEAN` if a column
-was declare with a type starting with `BOOL`.
-
-### `SQLITE_DATETIME`
-
-The [`datetime`](https://www.sqlite.org/lang_datefunc.html) type is a union
-that can contain a floating point Gregorian date, 64-bit integer `time_t` seconds
-since Unix epoch, or an ISO 8601-ish format string.
-The function `sqlite_type` returns `SQLITE_DATETIME` if a column
-was declare with a type starting with `DATE`.
-
-Some affordances have been made for constructing a `datetime` type
-to use with SQLite. It has constructors from floating point, time_t,
-and text, but SQLite only recognizes a subset of 
-[ISO 8601](https://www.w3.org/TR/NOTE-datetime) string formats.
-
-Use `datetime::as_time_t()` to convert a `datetime` with type `SQLITE_TEXT` to
-the preferred integer `time_t` representation.
-It uses `fms_parse.h` to convert non-ISO 8601 strings
-from the wild into valid dates. See [Posel's law](https://en.wikipedia.org/wiki/Jon_Postel)
-
-## Example
-
-This library endeavors to provide the thinnest possible C++ API to the SQLite C API.
-
-```
-sqlite::db db(""); // create an in-memory database
-sqlite::stmt stmt(db); // calls operator sqlite3*() on db
-stmt.exec("CREATE TABLE t (a INT, b FLOAT, c TEXT)");
-
-stmt.prepare("INSERT INTO t VALUES (?, ?, :c)");
-stmt[0] = 123; // calls sqlite3_bind_int(stmt, 0 + 1, 123);
-stmt[1] = 1.23;
-stmt[":c"] = "str"; // bind parameter name
-assert(SQLITE_DONE == stmt.step());
-
-stmt.prepare("SELECT * FROM t");
-stmt.step();
-assert(stmt[0] == 123);
-assert(stmt["b"] == 1.23); // lookup by name
-assert(stmt[2] == "str");
-assert(SQLITE_DONE == stmt.step());
-```
-
-Note we first iterate over rows, then iterate over columns.
 

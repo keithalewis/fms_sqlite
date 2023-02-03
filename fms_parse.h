@@ -387,25 +387,27 @@ namespace fms {
 			if (v.eat('Z')) { // Zulu
 				return true;
 			}
-			int sgn = 1;
-			if (v.eat('-')) {
-				sgn = -1;
-			}
-			else if (!v.eat('+')) {
-				v = v.error();
-				return false;
-			}
-			int tz = parse_int(v);
-			if (tz >= 10000) {
-				v = v.error();
-				return false;
-			}
-			if (tz < 100) {
-				ptm->tm_hour += sgn * tz;
-			}
-			else {
-				ptm->tm_min += sgn * tz % 100;
-				ptm->tm_hour += sgn * tz / 100;
+			if (v.len) {
+				int sgn = 1;
+				if (v.eat('-')) {
+					sgn = -1;
+				}
+				else if (!v.eat('+')) {
+					v = v.error();
+					return false;
+				}
+				int tz = parse_int(v);
+				if (tz >= 10000) {
+					v = v.error();
+					return false;
+				}
+				if (tz < 100) {
+					ptm->tm_hour += sgn * tz;
+				}
+				else {
+					ptm->tm_min += sgn * tz % 100;
+					ptm->tm_hour += sgn * tz / 100;
+				}
 			}
 		}
 
