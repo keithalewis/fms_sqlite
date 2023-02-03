@@ -120,7 +120,7 @@ namespace sqlite {
 	{
 		return quote(var, '\'');
 	}
-
+	/*
 	// https://sqlite.org/datatype3.html#determination_of_column_affinity
 	inline int affinity(const std::string_view& decl)
 	{
@@ -139,6 +139,7 @@ namespace sqlite {
 
 		return SQLITE_NUMERIC;
 	}
+	*/
 
 	// sqlite datetime
 	struct datetime {
@@ -517,14 +518,14 @@ namespace sqlite {
 		// https://sqlite.org/c3ref/column_decltype.html
 		const char* column_decltype(int j) const
 		{
-			const char* ctype = sqlite3_column_decltype(pstmt, j);
-
-			return ctype ? ctype : "TEXT";
+			return sqlite3_column_decltype(pstmt, j);
 		}
-		// Extended SQLITE_* type.
+		// Extended SQLITE_* type or fallback to fundamental type.
 		int sqltype(int j) const
 		{
-			return sqlite::sqltype(column_decltype(j));
+			const char* type = column_decltype(j);
+
+			return type ? sqlite::sqltype(column_decltype(j)) : column_type(j);
 		}
 
 		// position of name in row
@@ -1248,8 +1249,9 @@ namespace sqlite {
 	}
 
 	// Wrap sql in a transaction.
-	inline void transaction(sqlite3* pdb, const std::string_view& sql)
+	inline void transaction(sqlite3_stmt* pstmt, const std::string_view& sql)
 	{
+		sqlite3* pdb = sqlite3_db_handle(pstmt);
 		sqlite::stmt stmt(pdb);
 		stmt.prepare("BEGIN TRANSACTION");
 		stmt.step();
