@@ -1256,6 +1256,7 @@ namespace sqlite {
 		return o;
 	}
 
+	/*
 	// Wrap sql in a transaction.
 	inline void transaction(sqlite3* pdb, void(*op)())
 	{
@@ -1278,6 +1279,7 @@ namespace sqlite {
 		// check for SQLITE_BUSY and retry???
 		stmt.step();
 	}
+	*/
 
 } // sqlite
 
