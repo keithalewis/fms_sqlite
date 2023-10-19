@@ -1,6 +1,7 @@
 // sqlite_xxd.c: serialize database to header file
 #include <stdio.h>
 #include <string.h>
+#include <libgen.h>
 #include <errno.h>
 #include "sqlite3.h"
 
@@ -42,13 +43,14 @@ int main(int ac, char** av)
 		goto done;
 	}
 
-	char* dot = strchr(av[1], '.');
+	const char* base = basename(av[1]);
+	char* dot = strrchr(base, '.');
 	*dot = 0;
-	header(av[1], schema);
+	header(base, schema);
 	for (sqlite3_int64 i = 0; i < size; ++i) {
 		printf("0x%02x,\n", data[i]);
 	}
-	footer(av[1], schema, size);
+	footer(base, schema, size);
 
 done:
 	sqlite3_free(data);
