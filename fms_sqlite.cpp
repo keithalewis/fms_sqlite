@@ -1,6 +1,7 @@
 // fms_sqlite.cpp - test platform independent sqlite
 #include <cassert>
 #include <iostream>
+#include <iterator>
 #include <sstream>
 #include "fms_sqlite.h"
 
@@ -184,6 +185,31 @@ int test_copy()
 	return 0;
 }
 int copy_test = test_copy();
+
+sqlite::stmt stmt_create()
+{
+	sqlite::db db("");
+	sqlite::stmt stmt(db);
+	stmt.exec("DROP TABLE IF EXISTS t");
+	stmt.exec("CREATE TABLE t (a INT, b FLOAT, c TEXT, d DATETIME)");
+
+	stmt.prepare("INSERT INTO t VALUES "
+		"(1, .2, 'a', '2023-04-05'),"
+		"(3, .4, 'b', '2023-04-06');"
+	);
+	stmt.step();
+
+	return stmt;
+}
+int test_stmt_move()
+{
+	{
+		auto stmt = stmt_create();
+	}
+
+	return 0;
+}
+int stmt_move_test = test_stmt_move();
 
 int main()
 {

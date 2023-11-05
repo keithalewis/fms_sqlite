@@ -3,9 +3,11 @@
 #ifdef _DEBUG
 #include <cassert>
 #endif
+#include <cstdint>
 #include <iostream>
 #include <string_view>
 #include <stdexcept>
+#include <utility>
 #define SQLITE_ENABLE_NORMALIZE
 #include "sqlite-amalgamation-3390400/sqlite3.h"
 #include "fms_parse.h"
@@ -956,6 +958,11 @@ namespace sqlite {
 		{ }
 		// so ~stmt is called only once
 		stmt(const stmt& _stmt) = delete;
+		stmt(stmt&& _stmt) noexcept
+		{
+			pdb = std::exchange(_stmt.pdb, nullptr);
+			values::pstmt = std::exchange(_stmt.pstmt, nullptr);
+		}
 		stmt& operator=(const stmt& _stmt) = delete;
 		~stmt()
 		{
