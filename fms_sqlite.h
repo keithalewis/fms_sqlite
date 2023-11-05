@@ -551,7 +551,7 @@ namespace sqlite {
 		}
 
 		//
-		// Raw sqlite3_column_xxx wrappers.
+		// 0-based sqlite3_column_xxx wrappers.
 		// https://sqlite.org/c3ref/column_blob.html
 		//
 
