@@ -2,7 +2,7 @@
 
 A breviloquent header only C++ wrapper for the SQLite C API.
 
-On linuxy platforms with g++ type `make check` to build tests and run valgrind.
+On Unix platforms with g++ type `make check` to build tests and run valgrind.
 
 ```
 sqlite::db db(""); // in-memory database
