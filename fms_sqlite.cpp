@@ -7,6 +7,11 @@
 
 using namespace sqlite;
 
+#ifdef _DEBUG
+int test_view = fms::view<char>::test();
+int test_parse_int = fms::parse_int_test();
+#endif // _DEBUG
+
 sqlite::db db(""); // in-memory database
 
 int test_simple()
