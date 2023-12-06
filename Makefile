@@ -14,7 +14,7 @@ sqlite_xxd: sqlite_xxd.c
 .PHONY: clean test check
 
 clean:
-	rm -f *.o fms_sqlite
+	rm -rf *.o fms_sqlite
 
 test: fms_sqlite
 	./fms_sqlite
