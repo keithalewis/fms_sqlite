@@ -44,7 +44,6 @@ int test_simple()
 
 	return 0;
 }
-int simple_test = test_simple();
 
 int test_boolean()
 {
@@ -82,7 +81,6 @@ int test_boolean()
 
 	return 0;
 }
-int boolean_test = test_boolean();
 
 int test_datetime()
 {
@@ -156,7 +154,6 @@ int test_datetime()
 
 	return 0;
 }
-int datetime_test = test_datetime();
 
 void insert(sqlite3* db)
 {
@@ -189,7 +186,6 @@ int test_copy()
 
 	return 0;
 }
-int copy_test = test_copy();
 
 sqlite::stmt stmt_create()
 {
@@ -214,7 +210,6 @@ int test_stmt_move()
 
 	return 0;
 }
-int stmt_move_test = test_stmt_move();
 
 int main()
 {
@@ -224,6 +219,11 @@ int main()
 		values::test();
 		value::test();
 		stmt::test();
+		test_simple();
+		test_boolean();
+		test_datetime();
+		test_copy();
+		test_stmt_move();
 	}
 	catch (const std::exception& ex) {
 		puts(ex.what());
