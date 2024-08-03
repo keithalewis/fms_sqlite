@@ -364,3 +364,4 @@ fms_sqlite
 *.o
 *.db
 *.swp
+/build
