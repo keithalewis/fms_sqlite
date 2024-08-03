@@ -9,7 +9,7 @@
 #include <stdexcept>
 #include <utility>
 #define SQLITE_ENABLE_NORMALIZE
-#include "sqlite-amalgamation-3390400/sqlite3.h"
+#include "sqlite-amalgamation-3460000/sqlite3.h"
 #include "fms_parse.h"
 
 // call OP and throw on error
