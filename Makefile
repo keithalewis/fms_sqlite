@@ -1,4 +1,4 @@
-SQLITE_DIR = sqlite-amalgamation-3390400
+SQLITE_DIR = sqlite-amalgamation-3460000
 CXXFLAGS += -g -std=c++2b -D_DEBUG -Wall -Wno-unknown-pragmas
 LDFLAGS = -pthread -ldl
 CFLAGS = -g
