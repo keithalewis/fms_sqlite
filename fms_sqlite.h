@@ -282,10 +282,26 @@ namespace sqlite {
 	class db {
 		sqlite3* pdb;
 	public:
+		db()
+			: pdb(nullptr)
+		{ }
 		// db("") for in-memory database
 		// https://sqlite.org/c3ref/open.html
 		db(const char* filename, int flags = 0)
 			: pdb(nullptr)
+		{
+			open(filename, flags);
+		}
+		// so ~db is called only once
+		db(const db&) = delete;
+		db& operator=(const db&) = delete;
+		// https://sqlite.org/c3ref/close.html
+		~db()
+		{
+			close();
+		}
+
+		db& open(const char* filename, int flags = 0)
 		{
 			if (!flags) {
 				flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE;
@@ -295,14 +311,28 @@ namespace sqlite {
 			}
 
 			FMS_SQLITE_OK(pdb, sqlite3_open_v2(filename, &pdb, flags, nullptr));
+
+			return *this;
 		}
-		// so ~db is called only once
-		db(const db&) = delete;
-		db& operator=(const db&) = delete;
-		// https://sqlite.org/c3ref/close.html
-		~db()
+		db& open(const wchar_t* filename, int flags = 0)
+		{
+			if (!flags) {
+				flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE;
+			}
+			if (!filename || !*filename) {
+				flags |= SQLITE_OPEN_MEMORY;
+			}
+
+			FMS_SQLITE_OK(pdb, sqlite3_open16(filename, &pdb));
+
+			return *this;
+		}
+		db& close()
 		{
 			sqlite3_close(pdb);
+			pdb = nullptr;
+
+			return *this;
 		}
 
 		// For use in the sqlite C API.

@@ -214,11 +214,13 @@ int test_stmt_move()
 int main()
 {
 	try {
+#ifdef _DEBUG
 		fms::parse_test<char>();
 		datetime::test();
 		values::test();
 		value::test();
 		stmt::test();
+#endif // _DEBUG
 		test_simple();
 		test_boolean();
 		test_datetime();
