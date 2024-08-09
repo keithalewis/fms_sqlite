@@ -273,6 +273,8 @@ namespace fms {
 		}
 #endif // _DEBUG
 	};
+
+	// Function versions
 	template<class T>
 	constexpr view<T> drop(view<T> v, int n)
 	{
@@ -327,7 +329,8 @@ namespace fms {
 		return sgn*i;
 	}
 #ifdef _DEBUG
-	inline int parse_int_test() 
+	//static_assert(parse_int(view("123")) == 123);
+	constexpr int parse_int_test() 
 	{
 		{
 			char buf[] = "123";
