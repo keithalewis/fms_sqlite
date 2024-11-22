@@ -14,38 +14,15 @@
 #include <tuple>
 
 #ifndef _WIN32
-	#define localtime_s(x,y) localtime_r(y,x)
-	#define	_gmtime64_s(x, y) gmtime_r(y, x);
-	#define _gmtime64(x) gmtime(x)
-	#define _mkgmtime64 timegm
-	#define __FUNCTION__
-	#define _stricmp(x, y) strcasecmp(x,y)
+#define localtime_s(x,y) localtime_r(y,x)
+#define	_gmtime64_s(x, y) gmtime_r(y, x);
+#define _gmtime64(x) gmtime(x)
+#define _mkgmtime64 timegm
+#define __FUNCTION__
+#define _stricmp(x, y) strcasecmp(x,y)
 #endif
 
 namespace fms {
-
-	// Return length of null terminated string or len if not null terminated.
-	template<class T>
-	constexpr int length(const T* t, int len = -1)
-	{
-		int n = 0;
-
-		if (!t) {
-			return -1;
-		}
-		while (len == -1 or len--) {
-			if (0 == *t++) {
-				break;
-			}
-			++n;
-		}
-
-		return n;
-	}
-	static_assert(length("abc") == 3);
-	static_assert(length(L"abc") == 3);
-	static_assert(length("abc", 1) == 1);
-	static_assert(length(L"abc", 2) == 2);
 
 	template<class T>
 	constexpr int compare(const T* t, const T* u, size_t len)
@@ -64,30 +41,38 @@ namespace fms {
 	static_assert(compare("abc", "cbd", 3) < 0);
 	static_assert(compare("bc", "abc", 2) > 0);
 
-	// len < 0 is error
+	// non-owning view of buffer
 	template<class T>
 	struct view {
 		T* buf;
-		int len;
+		int len; // len < 0 indicates error
 		constexpr view()
 			: buf{ nullptr }, len{ 0 }
-		{ }
+		{
+		}
+		// null terminated buf
 		constexpr view(T* buf)
-			: view(buf, length(buf))
-		{ }
+			: buf(buf), len(0)
+		{
+			while (*buf++) {
+				++len;
+			}
+		}
 		constexpr view(T* buf, int len)
 			: buf(buf), len(len)
-		{ }
+		{
+		}
 		// remove null terminator
 		template<size_t N>
 		constexpr view(T(&buf)[N])
 			: view(buf, N - 1)
-		{ }
+		{
+		}
 		constexpr view(const view&) = default;
 		constexpr view& operator=(const view&) = default;
 		constexpr ~view() = default;
 
-		constexpr auto operator<=>(const view & w) const
+		constexpr auto operator<=>(const view& w) const
 		{
 			return len != w.len ? len <=> w.len : compare(buf, w.buf, len) <=> 0;
 		}
@@ -131,11 +116,6 @@ namespace fms {
 		{
 			return view(buf, -abs(len));
 		}
-		// convert error to view
-		constexpr view<T> error_msg() const
-		{
-			return view<T>(buf, abs(len));
-		}
 
 		constexpr view& drop(int n)
 		{
@@ -167,7 +147,7 @@ namespace fms {
 		// Eat single character t.
 		constexpr bool eat(T t)
 		{
-			if (len and *buf == t) {
+			if (len and buf and *buf == t) {
 				operator++();
 
 				return true;
@@ -175,43 +155,15 @@ namespace fms {
 
 			return false;
 		}
-		// Eat at most nts of ts.
-		constexpr bool eat(const T* ts, int nts = -1)
+		static constexpr bool is_space(T t)
 		{
-			while ((nts == -1 and *ts) or nts--) {
-				if (!eat(*ts++)) return false;
-			}
-
-			return true;
+			return t == ' ' or t == '\t' or t == '\n' or t == '\r' or t == '\v' or t == '\f';
 		}
-		// Eat at most 1 of ts.
-		constexpr bool eat_any(const T* ts, int nts = -1)
-		{
-			while ((nts == -1 and *ts) or nts--) {
-				if (eat(*ts++)) return true;
-			}
-
-			return false;
-		}
-
 		// Trim leading whitespace.
 		constexpr view& eat_ws()
 		{
-			while (len and isspace(*buf)) {
+			while (len and is_space(*buf)) {
 				operator++();
-			}
-
-			return *this;
-		}
-
-		// Truncate to first t.
-		constexpr view& trim_to(T t = 0) noexcept
-		{
-			for (int n = 0; n < len; ++n) {
-				if (buf[n] == t) {
-					len = n;
-					break;
-				}
 			}
 
 			return *this;
@@ -252,7 +204,7 @@ namespace fms {
 			{
 				view<const char> v("abc");
 				assert(v);
-				view<const char> v2( v );
+				view<const char> v2(v);
 				assert(v2);
 				assert(v == v2);
 				v = v2;
@@ -274,6 +226,7 @@ namespace fms {
 #endif // _DEBUG
 	};
 
+
 	// Function versions
 	template<class T>
 	constexpr view<T> drop(view<T> v, int n)
@@ -293,13 +246,14 @@ namespace fms {
 		int i = 0;
 		int sgn = 1;
 
-		if (v.len and *v == '-') {
+		if (v.eat('-')) {
 			sgn = -1;
-			v.eat('-');
 		}
-		v.eat('+');
+		else {
+			v.eat('+');
+		}
 
-		while (v.len and isdigit(*v)) {
+		while (v.len and '0' <= *v and *v <= '9') {
 			if (max <= 0) {
 				v = v.error();
 
@@ -326,11 +280,11 @@ namespace fms {
 			return INT_MIN;
 		}
 
-		return sgn*i;
+		return sgn * i;
 	}
 #ifdef _DEBUG
 	//static_assert(parse_int(view("123")) == 123);
-	constexpr int parse_int_test() 
+	constexpr int parse_int_test()
 	{
 		{
 			char buf[] = "123";
@@ -380,7 +334,7 @@ namespace fms {
 		}
 
 		return 0;
-	}	
+	}
 #endif // _DEBUG
 
 	// [+-]ddd[.ddd][eE][+-]ddd
@@ -590,7 +544,7 @@ namespace fms {
 			assert(take(v, -1) == view(buf + 2, 1));
 		}
 		{
-			T buf[] = {'1', '2', '3'};
+			T buf[] = { '1', '2', '3' };
 			view v(buf, 3);
 			assert(123 == parse_int(v));
 			assert(!v);
@@ -602,7 +556,7 @@ namespace fms {
 			assert(!v);
 		}
 		{
-			T buf[] = { '1', '2', '3', 'x'};
+			T buf[] = { '1', '2', '3', 'x' };
 			view v(buf, 4);
 			assert(123 == parse_int(v));
 			assert(v);
@@ -624,7 +578,7 @@ namespace fms {
 			T buf[] = { '1', '2', 'c' };
 			view v(buf, 3);
 			assert(INT_MAX == parse_int(v, 0, 1));
-			assert(!v and '2' == *v.error_msg());
+			//assert(!v and '2' == *v.error_msg());
 		}
 		{
 			const char date[] = "2022-01-02 3:04:5Z";
@@ -645,8 +599,7 @@ namespace fms {
 			localtime_s(&tm, &t);
 			char buf[256];
 			strftime(buf, 256, "%Y-%m-%d %H:%M:%S", &tm);
-			view<const char> v(buf);
-			v.trim_to(0);
+			view<const char> v(&buf[0]);
 			assert(parse_tm(v, &tm));
 			time_t u = mktime(&tm);
 			assert(t == u);

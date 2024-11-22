@@ -18,7 +18,7 @@
 
 // fundamental sqlite column types
 // type, name
-#define SQLITE_TYPE_ENUM(X) \
+#define SQLITE_TYPE_ENUM(X)  \
 X(SQLITE_INTEGER, "INTEGER") \
 X(SQLITE_FLOAT,   "FLOAT")   \
 X(SQLITE_TEXT,    "TEXT")    \
