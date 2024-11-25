@@ -5,13 +5,10 @@
 #endif // _DEBUG
 #include <climits>
 #include <cmath>
-#include <ctype.h>
 #include <ctime>
-#include <cstring>
 #include <algorithm>
 #include <compare>
 #include <limits>
-#include <string_view>
 #include <tuple>
 
 #ifndef _WIN32
