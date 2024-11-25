@@ -460,25 +460,23 @@ namespace fms {
 		ptm->tm_sec = 0;
 
 		auto [y, m, d] = parse_ymd(v);
+		if (v.is_error()) return false;
 		ptm->tm_year = y - 1900;
 		ptm->tm_mon = m - 1;
 		ptm->tm_mday = d;
 
-		if (!v.len) return true;
-		if (!v) return false;
+		if (v.len == 0) return true;
 
 		if (!v.eat(' ') and !v.eat('T')) {
 			v = v.as_error();
 			return false;
 		}
 
-		if (!v.len) return true;
-
 		auto [hh, mm, ss] = parse_hms(v);
+		if (v.is_error()) return false;
 		ptm->tm_hour = hh;
 		ptm->tm_min = mm;
 		ptm->tm_sec = ss;
-		if (v.is_error()) return false;
 
 		// [+-]dddd timezone offset
 		if (v.len) {
@@ -505,12 +503,20 @@ namespace fms {
 					return false;
 				}
 				int tz = parse_int(v);
-				if (tz >= 10000) {
+				if (tz >= 10000) { // only hhmm allowed
 					v = v.as_error();
 					return false;
 				}
 				if (tz < 100) {
 					ptm->tm_hour += sgn * tz;
+					if (v.eat(':')) { // hh:mm
+						tz = parse_int(v);
+						if (tz >= 60) {
+							v = v.as_error();
+							return false;
+						}
+						ptm->tm_min += sgn * tz;
+					}
 				}
 				else {
 					ptm->tm_min += sgn * tz % 100;
