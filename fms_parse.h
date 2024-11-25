@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <compare>
 #include <limits>
+#include <string_view>
 #include <tuple>
 
 #ifndef _WIN32
@@ -27,7 +28,7 @@ namespace fms {
 	template<class T>
 	constexpr int compare(const T* t, const T* u, size_t len)
 	{
-		while (len-- && *t && *u) {
+		while (len--) {
 			if (*t != *u) {
 				return *t - *u;
 			}
@@ -41,6 +42,17 @@ namespace fms {
 	static_assert(compare("abc", "cbd", 3) < 0);
 	static_assert(compare("bc", "abc", 2) > 0);
 
+	template<class T>
+	constexpr bool is_space(T t)
+	{
+		return t == ' ' or t == '\t' or t == '\n' or t == '\r' or t == '\v' or t == '\f';
+	}
+	template<class T>
+	constexpr bool is_digit(T t)
+	{
+		return '0' <= t and t <= '9';
+	}
+
 	// non-owning view of buffer
 	template<class T>
 	struct view {
@@ -50,16 +62,13 @@ namespace fms {
 			: buf{ nullptr }, len{ 0 }
 		{
 		}
-		// null terminated buf
-		constexpr view(T* buf)
-			: buf(buf), len(0)
-		{
-			while (*buf++) {
-				++len;
-			}
-		}
 		constexpr view(T* buf, int len)
 			: buf(buf), len(len)
+		{
+		}
+		// null terminated buf
+		constexpr view(T* buf)
+			: buf(buf), len(static_cast<int>(std::basic_string_view<T>(buf).length()))
 		{
 		}
 		// remove null terminator
@@ -91,7 +100,7 @@ namespace fms {
 		}
 		constexpr view& operator++()
 		{
-			if (len) {
+			if (len > 0) {
 				++buf;
 				--len;
 			}
@@ -112,7 +121,7 @@ namespace fms {
 		{
 			return len < 0;
 		}
-		constexpr view error() const
+		constexpr view as_error() const
 		{
 			return view(buf, -abs(len));
 		}
@@ -154,10 +163,6 @@ namespace fms {
 			}
 
 			return false;
-		}
-		static constexpr bool is_space(T t)
-		{
-			return t == ' ' or t == '\t' or t == '\n' or t == '\r' or t == '\v' or t == '\f';
 		}
 		// Trim leading whitespace.
 		constexpr view& eat_ws()
@@ -255,17 +260,23 @@ namespace fms {
 
 		while (v.len and '0' <= *v and *v <= '9') {
 			if (max <= 0) {
-				v = v.error();
+				v = v.as_error();
 
 				return INT_MAX;
 			}
 
 			int c = *v - '0';
 			if (c < 10) {
-				i = 10 * i + (*v - '0');
+				int j = *v - '0';
+				if (j > INT_MAX - i) {
+					v = v.as_error();
+
+					return INT_MAX;
+				}
+				i = 10 * i + j;
 			}
 			else {
-				v = v.error();
+				v = v.as_error();
 
 				return INT_MAX;
 			}
@@ -275,7 +286,7 @@ namespace fms {
 			--max;
 		}
 		if (min > 0) {
-			v = v.error();
+			v = v.as_error();
 
 			return INT_MIN;
 		}
@@ -344,11 +355,11 @@ namespace fms {
 		static const double NaN = std::numeric_limits<double>::quiet_NaN();
 
 		double d = parse_int(v);
-		if (v.error()) return NaN;
+		if (v.is_error()) return NaN;
 
 		if (v.eat('.')) {
 			double e = .1;
-			while (isdigit(*v)) {
+			while (is_digit(*v)) {
 				d += (*v - '0') * e;
 				e /= 10;
 				++v;
@@ -365,9 +376,9 @@ namespace fms {
 				v.eat('+');
 			}
 			int e = parse_int(v);
-			if (v.error()) return NaN;
+			if (v.is_error()) return NaN;
 
-			d *= pow(10., sgn * e);
+			d *= pow(10., sgn*e);
 		}
 
 		return d;
@@ -385,19 +396,19 @@ namespace fms {
 
 		sep = *v;
 		if (sep != '-' and sep != '/') {
-			v = v.error();
+			v = v.as_error();
 			return { y, m, d };
 		}
 		if (!v.eat(sep)) {
-			v = v.error();
+			v = v.as_error();
 			return { y, m, d };
 		}
 
 		m = parse_int(v, 1, 2);
-		if (v.error()) return { y, m, d };
+		if (v.as_error()) return { y, m, d };
 
 		if (!v.eat(sep)) {
-			v = v.error();
+			v = v.as_error();
 			return { y, m, d };
 		}
 
@@ -416,7 +427,7 @@ namespace fms {
 		if (!v) return { h, m, s };
 
 		if (!v.eat(':')) {
-			v = v.error();
+			v = v.as_error();
 			return { h, m, s };
 		}
 
@@ -424,7 +435,7 @@ namespace fms {
 		if (!v) return { h, m, s };
 
 		if (!v.eat(':')) {
-			v = v.error();
+			v = v.as_error();
 			return { h, m, s };
 		}
 
@@ -457,7 +468,7 @@ namespace fms {
 		if (!v) return false;
 
 		if (!v.eat(' ') and !v.eat('T')) {
-			v = v.error();
+			v = v.as_error();
 			return false;
 		}
 
@@ -472,12 +483,12 @@ namespace fms {
 		// [+-]dddd timezone offset
 		if (v.len) {
 			if (v.eat('.')) { // ignore fractional seconds
-				if (!isdigit(*v)) {
-					v = v.error();
+				if (!is_digit(*v)) {
+					v = v.as_error();
 					return false;
 				}
 				parse_int(v);
-				if (v.error()) {
+				if (v.is_error()) {
 					return false;
 				}
 			}
@@ -490,12 +501,12 @@ namespace fms {
 					sgn = -1;
 				}
 				else if (!v.eat('+')) {
-					v = v.error();
+					v = v.as_error();
 					return false;
 				}
 				int tz = parse_int(v);
 				if (tz >= 10000) {
-					v = v.error();
+					v = v.as_error();
 					return false;
 				}
 				if (tz < 100) {
