@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <compare>
 #include <limits>
+#include <string_view>
 #include <tuple>
 
 #ifndef _WIN32
@@ -16,16 +17,15 @@
 #define	_gmtime64_s(x, y) gmtime_r(y, x);
 #define _gmtime64(x) gmtime(x)
 #define _mkgmtime64 timegm
-#define __FUNCTION__
 #define _stricmp(x, y) strcasecmp(x,y)
 #endif
 
 namespace fms {
 
 	template<class T>
-	constexpr int compare(const T* t, const T* u, size_t len)
+	constexpr int compare(const T* t, const T* u, size_t len = -1u)
 	{
-		while (len--) {
+		while (len-- and *t and *u) {
 			if (*t != *u) {
 				return *t - *u;
 			}
@@ -35,6 +35,7 @@ namespace fms {
 
 		return 0;
 	}
+	static_assert(compare("abc", "abc") == 0);
 	static_assert(compare("abc", "abc", 3) == 0);
 	static_assert(compare("abc", "cbd", 3) < 0);
 	static_assert(compare("bc", "abc", 2) > 0);
@@ -121,6 +122,10 @@ namespace fms {
 		constexpr view as_error() const
 		{
 			return view(buf, -abs(len));
+		}
+		constexpr const std::basic_string_view<T> string_view() const
+		{
+			return std::basic_string_view<T>(buf, buf + abs(len));
 		}
 
 		constexpr view& drop(int n)
@@ -523,6 +528,17 @@ namespace fms {
 		}
 
 		return true;
+	}
+	template<class T>
+	inline time_t to_time_t(fms::view<T>& v)
+	{
+		tm tm;
+		
+		if (!parse_tm(v, &tm)) {
+			return -1;
+		}
+
+		return _mkgmtime64(&tm);
 	}
 
 
