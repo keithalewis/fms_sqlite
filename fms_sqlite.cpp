@@ -14,6 +14,19 @@ int test_parse_int = fms::parse_int_test();
 
 sqlite::db db(""); // in-memory database
 
+int test_error()
+{
+	try {
+		sqlite::stmt stmt(::db);
+		stmt.exec("DROP !@#$");
+	}
+	catch (const std::exception& ex) {
+		std::cerr << ex.what() << '\n';
+	}
+
+	return 0;
+}
+
 int test_simple()
 {
 	try {
@@ -215,6 +228,7 @@ int main()
 {
 	try {
 #ifdef _DEBUG
+		test_error();
 		fms::parse_test<char>();
 		datetime::test();
 		values::test();

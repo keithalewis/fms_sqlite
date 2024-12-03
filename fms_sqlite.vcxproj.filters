@@ -26,6 +26,9 @@
     <ClInclude Include="fms_sqlite.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="fms_error.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" />

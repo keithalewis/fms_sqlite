@@ -12,11 +12,12 @@
 #include <utility>
 #define SQLITE_ENABLE_NORMALIZE
 #include "sqlite-amalgamation-3460000/sqlite3.h"
+#include "fms_error.h"
 #include "fms_parse.h"
 
 // call OP and throw on error
-#define FMS_SQLITE_OK(DB, OP) { int __ret__ = OP; if (SQLITE_OK != __ret__) \
-	throw error_message(sqlite3_errmsg(DB)); }
+#define FMS_SQLITE_OK(DB, OP) { int __ret__ = OP; if (SQLITE_OK != __ret__) { \
+		throw std::runtime_error(fms::error(sqlite3_errmsg(DB)).what()); } }
 
 // fundamental sqlite column types
 // type, name
@@ -64,25 +65,7 @@ X("BOOLEAN", "NUMERIC", SQLITE_BOOLEAN, 5) \
 X("DATETIME", "NUMERIC", SQLITE_DATETIME, 5) \
 X("DATE", "NUMERIC", SQLITE_DATETIME, 5) \
 
-
 namespace sqlite {
-
-	inline std::string error_message(const std::string_view msg)
-	{
-		const auto err = std::source_location::current();
-
-		std::string errmsg = std::format(
-			"file: {}\n"
-			"line: {}\n",
-			err.file_name(), err.line());
-		if (err.function_name() != nullptr) {
-			errmsg += std::format("function: {}\n", err.function_name());
-		}
-		errmsg += std::format("error: {}", msg);
-
-		return errmsg;
-	}
-
 	// SQL declared name to SQLITE_* correspondence
 #define SQLITE_DECL(a,b,c,d) {a, c},
 	inline const struct { const char* name; int type; } sqlite_name_type[] = {
@@ -215,7 +198,7 @@ namespace sqlite {
 				struct tm tm;
 				// Postel parse ISO 8601-ish strings found in the wild
 				if (!fms::parse_tm(v, &tm)) {
-					throw std::runtime_error(error_message(v.string_view()));
+					fms::error(v.string_view());
 				}
 				value.i = _mkgmtime64(&tm);
 				type = SQLITE_INTEGER;
@@ -332,7 +315,11 @@ namespace sqlite {
 				flags |= SQLITE_OPEN_MEMORY;
 			}
 
-			FMS_SQLITE_OK(pdb, sqlite3_open_v2(filename, &pdb, flags, nullptr));
+			int ret = sqlite3_open_v2(filename, &pdb, flags, nullptr);
+			if (ret != SQLITE_OK) {
+				throw fms::error(sqlite3_errmsg(pdb));
+			}
+			//FMS_SQLITE_OK(pdb, sqlite3_open_v2(filename, &pdb, flags, nullptr));
 
 			return *this;
 		}
@@ -534,7 +521,7 @@ namespace sqlite {
 		{
 			int i = bind_parameter_index(name);
 			if (!i) {
-				throw std::runtime_error(__FUNCTION__ ": unrecognized name");
+				throw fms::error("unrecognized name");
 			}
 
 			return bind(i, t);
@@ -906,7 +893,7 @@ namespace sqlite {
 				vs.bind(i, v.as_datetime());
 				break;
 			default:
-				std::runtime_error(error_message("unknown type"));
+				throw fms::error("unknown type");
 			}
 
 			return *this;
@@ -999,9 +986,10 @@ namespace sqlite {
 	// RAII for sqlite3_stmt*
 	class stmt : public values {
 		sqlite3* pdb;
+		const char* tail;
 	public:
 		stmt(sqlite3* pdb)
-			: sqlite::values(nullptr), pdb{ pdb }
+			: sqlite::values(nullptr), pdb{ pdb }, tail{ nullptr }
 		{ }
 		// so ~stmt is called only once
 		stmt(const stmt&) = delete;
@@ -1030,13 +1018,16 @@ namespace sqlite {
 			return string(sqlite3_normalized_sql(pstmt));
 		}
 
-		// Compile An SQL Statement: https://www.sqlite.org/c3ref/prepare.html
+		// Compile a SQL statement: https://www.sqlite.org/c3ref/prepare.html
 		// SQL As Understood By SQLite: https://www.sqlite.org/lang.html
 		int prepare(const std::string_view& sql)
 		{
 			FMS_SQLITE_OK(pdb, sqlite3_finalize(pstmt));
-			int ret = sqlite3_prepare_v2(pdb, sql.data(), (int)sql.size(), &pstmt, 0);
-			FMS_SQLITE_OK(pdb, ret);
+			int ret = sqlite3_prepare_v2(pdb, sql.data(), (int)sql.size(), &pstmt, &tail);
+			if (ret != SQLITE_OK) {
+				const auto err = fms::error(sqlite3_errmsg(pdb)).at(sql, sqlite3_error_offset(pdb));
+				throw fms::exception(err);
+			}
 
 			return ret;
 		}
@@ -1058,12 +1049,9 @@ namespace sqlite {
 		// execute a sql statement
 		int exec(const std::string_view& sql)
 		{
-			int ret = SQLITE_OK;
-
-			ret = prepare(sql);
-			FMS_SQLITE_OK(pdb, ret);
-			ret = step();
-			if (SQLITE_DONE != ret) {
+			prepare(sql);
+			int ret = step();
+			if (SQLITE_DONE != ret) { // TODO: while(tail) { ... }
 				FMS_SQLITE_OK(pdb, ret);
 			}
 
