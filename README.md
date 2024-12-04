@@ -1,6 +1,58 @@
 # fms_sqlite
 
-A breviloquent header only C++ wrapper for the SQLite C API.
+A parsimonious header only C++ wrapper for the 
+[SQLite C API](https://www.sqlite.org/c3ref/intro.html).
+Although SQLite is the most
+[widely deployed and used](https://www.sqlite.org/mostdeployed.html)
+database engine in the world it is not the most widely understood.
+SQLite is a 
+[self-contained, serverless, zero-configuration, transactional SQL database engine](https://www.sqlite.org/about.html).
+SQL statements that work on statically typed databases 
+work the same way in SQLite. 
+However, the dynamic typing in SQLite allows it to do things which are not possible 
+in traditional rigidly typed databases. 
+The datatype of a value is associated with the value itself, not with its container. 
+
+The two most significant SQLite C structs are 
+[`sqlite3`](https://sqlite.org/c3ref/sqlite3.html), 
+and [`sqlite3_stmt`](https://sqlite.org/c3ref/stmt.html)
+They are wrapped by `sqlite::db` and `sqlite::stmt`.
+Their copy constructors and copy assignments are deleted so they work
+similar to [linear types](https://ncatlab.org/nlab/show/linear+type+theory) used in Rust. 
+They provide `operator sqlite3*() const noexcept` 
+and `operator sqlite3_stmt*() const noexcept` member functions
+so they can be passed as arguments to any SQLite C API function.
+The `fms_sqlite` library does not wrap all of the functions in the SQLite C API.
+
+An important but less understood C struct is 
+[`sqlite3_value`](https://sqlite.org/c3ref/value.html).
+It is used to convert the bits stored in SQLite to a well-defined type.
+
+Create an in-memory database.
+```cpp
+	sqlite::db db(""); // in-memory database
+	db.exec("CREATE TABLE t (a INT, b FLOAT, c TEXT)"); // call sqlite3_exec
+```
+
+Insert values.
+```
+	db.exec("INSERT INTO t VALUES (123, 1.23, 'str')");
+```
+
+Use statements to insert values.
+```cpp
+	sqlite::stmt stmt;
+	// call sqlite3_prepare_v2.
+	stmt.prepare(db, "INSERT INTO t VALUES (?, ?, ?)");
+	stmt[0] = 123;   // SQLITE_INTEGER
+	stmt[1] = 1.23;  // SQLITE_FLOAT
+	stmt[2] = "str"; // SQLITE_TEXT
+	stmt.step(); // calls sqlite3_step(stmt);
+```
+
+The C++ wrapper is faithful to the SQLite C API naming conventions.
+
+The SQLite value object https://www.sqlite.org/c3ref/value.html
 
 On Unix platforms with g++ type `make check` to build tests and run valgrind.
 
@@ -29,11 +81,7 @@ assert(SQLITE_DONE == stmt.step());
 This library does not wrap all of the functions in the SQLite C API
 but it does make it convenient to use them from C++. 
 The classes `sqlite::db` and `sqlite::stmt` wrap `sqlite3*` and `sqlite3_stmt*` 
-pointers using RAII to manage memory allocation.  Their
-copy constructor and copy assignment members are deleted so they work
-similar to [linear types](https://ncatlab.org/nlab/show/linear+type+theory). 
-They provide `operator sqlite3*() const` and `operator sqlite3_stmt*() const` member functions
-so they can be passed as arguments to `sqlite3_*` C functions.
+pointers using RAII to manage memory allocation.  
 
 There are many [high quality implementations](http://srombauts.github.io/SQLiteCpp/)
 of C++ wrappers for SQLite.
