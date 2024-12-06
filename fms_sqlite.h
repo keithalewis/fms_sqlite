@@ -912,7 +912,7 @@ namespace sqlite {
 		{
 			int i = bind_parameter_index(name);
 			if (!i) {
-				throw fms::error("unrecognized name");
+				throw fms::exception(fms::error("unrecognized name"));
 			}
 
 			return bind(i, t);
