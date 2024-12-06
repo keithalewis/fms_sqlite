@@ -1,7 +1,9 @@
 # fms_sqlite
 
 A parsimonious header only C++ wrapper for the 
-[SQLite C API](https://www.sqlite.org/c3ref/intro.html).
+[SQLite C API](https://www.sqlite.org/c3ref/intro.html)
+that is faithul to its naming conventions.
+
 Although SQLite is the most
 [widely deployed and used](https://www.sqlite.org/mostdeployed.html)
 database engine in the world it is not the most widely understood.
@@ -13,7 +15,7 @@ However, the dynamic typing in SQLite allows it to do things which are not possi
 in traditional rigidly typed databases. 
 The datatype of a value is associated with the value itself, not with its container. 
 
-The two most significant SQLite C structs are 
+The two main SQLite C structs are 
 [`sqlite3`](https://sqlite.org/c3ref/sqlite3.html), 
 and [`sqlite3_stmt`](https://sqlite.org/c3ref/stmt.html)
 They are wrapped by `sqlite::db` and `sqlite::stmt`.
@@ -24,9 +26,11 @@ and `operator sqlite3_stmt*() const noexcept` member functions
 so they can be passed as arguments to any SQLite C API function.
 The `fms_sqlite` library does not wrap all of the functions in the SQLite C API.
 
-An important but less understood C struct is 
+An important but less understood SQLite C struct is 
 [`sqlite3_value`](https://sqlite.org/c3ref/value.html).
-It is used to convert the bits stored in SQLite to a well-defined type.
+It is used to convert the bits c contained in SQLite to a C type.
+
+## Example
 
 Create an in-memory database.
 ```cpp
@@ -36,18 +40,29 @@ Create an in-memory database.
 
 Insert values.
 ```
-	db.exec("INSERT INTO t VALUES (123, 1.23, 'str')");
+	db.exec("INSERT INTO t VALUES (123, 1.23, 'text')");
 ```
 
-Use statements to insert values.
+Use a statement to insert values into a database.
 ```cpp
 	sqlite::stmt stmt;
-	// call sqlite3_prepare_v2.
+	// Call sqlite3_prepare_v2 for a database.
 	stmt.prepare(db, "INSERT INTO t VALUES (?, ?, ?)");
+	// Bind values to the statement.
 	stmt[0] = 123;   // SQLITE_INTEGER
 	stmt[1] = 1.23;  // SQLITE_FLOAT
-	stmt[2] = "str"; // SQLITE_TEXT
+	stmt[2] = "text"; // SQLITE_TEXT
 	stmt.step(); // calls sqlite3_step(stmt);
+```
+
+Query the database.
+```cpp
+	stmt.prepare(db, "SELECT * FROM t");
+	assert(SQLITE_ROW == stmt.step());
+	assert(stmt[0] == 123);
+	assert(stmt[1] == 1.23);
+	assert(stmt[2] == "text");
+	assert(SQLITE_DONE == stmt.step());
 ```
 
 The C++ wrapper is faithful to the SQLite C API naming conventions.
@@ -258,3 +273,11 @@ If it has an `I::name()` function that will be used to
 insert a value by name.
 
 
+## FAQ
+
+<dl>
+<dt>Why isn't the namespace called `sqlite3`_?</td>
+<dd>Because the SQLite C API uses the struct `sqlite3`.<dd>
+</dl>
+
+Why...

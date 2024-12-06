@@ -18,7 +18,7 @@ int test_error()
 {
 	try {
 		sqlite::stmt stmt;
-		stmt.exec(::db, "DROP !@#$");
+		::db.exec("DROP !@#$");
 	}
 	catch (const std::exception& ex) {
 		std::cerr << ex.what() << '\n';
@@ -32,8 +32,8 @@ int test_simple()
 	try {
 		{
 			sqlite::stmt stmt;
-			stmt.exec(::db, "DROP TABLE IF EXISTS t");
-			stmt.exec(::db, "CREATE TABLE t (a INT, b FLOAT, c TEXT)");
+			::db.exec("DROP TABLE IF EXISTS t");
+			::db.exec("CREATE TABLE t (a INT, b FLOAT, c TEXT)");
 
 			stmt.prepare(::db, "INSERT INTO t VALUES (?, ?, :c)");
 			stmt[0] = 123; // calls sqlite3_bind_int(stmt, 0 + 1, 123);
@@ -62,28 +62,27 @@ int test_boolean()
 {
 	try {
 		{
-			sqlite::stmt stmt;
-			stmt.exec(::db, "DROP TABLE IF EXISTS t");
-			stmt.exec(::db, "CREATE TABLE t (b BOOLEAN)");
-			stmt.exec(::db, "INSERT INTO t (b) VALUES(TRUE)");
+			::db.exec("DROP TABLE IF EXISTS t");
+			::db.exec("CREATE TABLE t (b BOOLEAN)");
+			::db.exec("INSERT INTO t (b) VALUES(TRUE)");
 
-			stmt.reset();
+			sqlite::stmt stmt;
 			stmt.prepare(::db, "SELECT * FROM t");
 			stmt.step();
-			assert(stmt[0].column_type() == SQLITE_INTEGER);
-			assert(stmt[0].column_type() == SQLITE_BOOLEAN);
+			assert(stmt[0].type() == SQLITE_INTEGER);
+			//assert(stmt[0].type() == SQLITE_BOOLEAN);
 			assert(stmt[0] == true);
-			assert(stmt[0].column_boolean());
+			assert(stmt[0].boolean());
 
 			assert(SQLITE_DONE == stmt.step());
 
-			stmt.exec(::db, "UPDATE t SET b = FALSE WHERE b = TRUE");
+			::db.exec("UPDATE t SET b = FALSE WHERE b = TRUE");
 			stmt.prepare(::db, "SELECT * FROM t");
 			stmt.step();
-			assert(stmt[0].column_type() == SQLITE_INTEGER);
-			assert(stmt[0].column_type() == SQLITE_BOOLEAN);
+			assert(stmt[0].type() == SQLITE_INTEGER);
+			//assert(stmt[0].type() == SQLITE_BOOLEAN);
 			assert(stmt[0] == false);
-			assert(!stmt[0].column_boolean());
+			assert(!stmt[0].boolean());
 
 			assert(SQLITE_DONE == stmt.step());
 		}
@@ -99,18 +98,17 @@ int test_datetime()
 {
 	try {
 		{
-			sqlite::stmt stmt;
-			stmt.exec(::db, "DROP TABLE IF EXISTS dt");
-			stmt.exec(::db, "CREATE TABLE dt (t DATETIME)");
+			::db.exec("DROP TABLE IF EXISTS dt");
+			::db.exec("CREATE TABLE dt (t DATETIME)");
 			
 			// sqlite doesn't recognize this
-			stmt.exec(::db, "INSERT INTO dt (t) VALUES('1970-1-2')");
+			::db.exec("INSERT INTO dt (t) VALUES('1970-1-2')");
 
-			stmt.reset();
+			sqlite::stmt stmt;
 			stmt.prepare(::db, "SELECT t FROM dt");
 			stmt.step();
-			assert(stmt[0].column_type() == SQLITE_TEXT);
-			assert(stmt[0].column_type() == SQLITE_DATETIME);
+			assert(stmt[0].type() == SQLITE_TEXT);
+			//assert(stmt[0].type() == SQLITE_DATETIME);
 			datetime t = stmt[0].column_datetime();
 			
 			// sqlite will store the string
@@ -129,7 +127,7 @@ int test_datetime()
 			assert(SQLITE_DONE == stmt.step());
 
 			// sqlite wants an ISO 8601 date
-			stmt.exec(::db, "UPDATE dt SET t = '1970-01-02'");
+			::db.exec("UPDATE dt SET t = '1970-01-02'");
 			stmt.prepare(::db, "SELECT unixepoch(t) FROM dt");
 			stmt.step();
 			t = stmt[0].column_datetime();
@@ -170,11 +168,11 @@ int test_datetime()
 
 void insert(sqlite3* db)
 {
-	sqlite::stmt stmt;
-	stmt.exec(db, "DROP TABLE IF EXISTS t");
-	stmt.exec(db, "CREATE TABLE t (a INT, b FLOAT, c TEXT, d DATETIME)");
+	::db.exec("DROP TABLE IF EXISTS t");
+	::db.exec("CREATE TABLE t (a INT, b FLOAT, c TEXT, d DATETIME)");
 
-	stmt.prepare(db, "INSERT INTO t VALUES "
+	sqlite::stmt stmt;
+	stmt.prepare(::db, "INSERT INTO t VALUES "
 		"(1, .2, 'a', '2023-04-05'),"
 		"(3, .4, 'b', '2023-04-06');"
 	);
@@ -203,17 +201,16 @@ int test_copy()
 sqlite::stmt stmt_create()
 {
 	sqlite::db db("");
-	sqlite::stmt stmt;
-	stmt.exec(db, "DROP TABLE IF EXISTS t");
-	stmt.exec(db, "CREATE TABLE t (a INT, b FLOAT, c TEXT, d DATETIME)");
+	db.exec("CREATE TABLE t (a INT, b FLOAT, c TEXT, d DATETIME)");
 	
+	sqlite::stmt stmt;
 	stmt.prepare(db, "INSERT INTO t VALUES "
 		"(1, .2, 'a', '2023-04-05'),"
 		"(3, .4, 'b', '2023-04-06');"
 	);
 	stmt.step();
 	
-	return stmt;
+	return std::move(stmt);
 }
 int test_stmt_move()
 {
