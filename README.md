@@ -280,4 +280,15 @@ insert a value by name.
 <dd>Because the SQLite C API uses the struct `sqlite3`.<dd>
 </dl>
 
-Why...
+Why..
+
+```
+sqlite::db db;
+db.exec("CREATE TABLE t (a INT, b FLOAT, c TEXT)");
+stmt(db, "SELECT * FROM t");
+while (stmt.step() == SQLITE_ROW) {
+	int a = stmt[0];
+	double b = stmt[1];
+	std::string c = stmt[2];
+}
+```

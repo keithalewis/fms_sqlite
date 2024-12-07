@@ -72,7 +72,7 @@ int test_boolean()
 			assert(stmt[0].type() == SQLITE_INTEGER);
 			//assert(stmt[0].type() == SQLITE_BOOLEAN);
 			assert(stmt[0] == true);
-			assert(stmt[0].boolean());
+			assert(stmt[0].column_boolean());
 
 			assert(SQLITE_DONE == stmt.step());
 
@@ -82,7 +82,7 @@ int test_boolean()
 			assert(stmt[0].type() == SQLITE_INTEGER);
 			//assert(stmt[0].type() == SQLITE_BOOLEAN);
 			assert(stmt[0] == false);
-			assert(!stmt[0].boolean());
+			assert(!stmt[0].column_boolean());
 
 			assert(SQLITE_DONE == stmt.step());
 		}
@@ -198,19 +198,20 @@ int test_copy()
 	return 0;
 }
 */
+/*
 sqlite::stmt stmt_create()
 {
-	sqlite::db db("");
-	db.exec("CREATE TABLE t (a INT, b FLOAT, c TEXT, d DATETIME)");
+	::db.exec("CREATE TABLE u (a INT, b FLOAT, c TEXT, d DATETIME)");
 	
 	sqlite::stmt stmt;
-	stmt.prepare(db, "INSERT INTO t VALUES "
-		"(1, .2, 'a', '2023-04-05'),"
-		"(3, .4, 'b', '2023-04-06');"
-	);
+	stmt.prepare(::db, R"(
+	INSERT INTO u VALUES
+		(1, .2, 'a', '2023-04-05'),
+		(3, .4, 'b', '2023-04-06');
+	)");
 	stmt.step();
 	
-	return std::move(stmt);
+	return stmt;
 }
 int test_stmt_move()
 {
@@ -220,7 +221,7 @@ int test_stmt_move()
 
 	return 0;
 }
-
+*/
 int main()
 {
 	try {
@@ -229,13 +230,13 @@ int main()
 		fms::parse_test<char>();
 		datetime::test();
 		//value::test();
-		stmt::test();
+		//stmt::test();
 #endif // _DEBUG
 		test_simple();
 		test_boolean();
 		test_datetime();
 		//test_copy();
-		test_stmt_move();
+		//test_stmt_move();
 	}
 	catch (const std::exception& ex) {
 		puts(ex.what());

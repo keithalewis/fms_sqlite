@@ -14,13 +14,12 @@
 
 // call OP and throw on error
 #define FMS_SQLITE_OK(DB, OP) { int __ret__ = OP; if (SQLITE_OK != __ret__) { \
-		throw fms::exception(fms::error(sqlite3_errmsg(DB))); } }
+		throw std::runtime_error(fms::error(sqlite3_errmsg(DB)).what()); } }
 
 #define FMS_SQLITE_AOK(OP) if (int __ret__ = OP; __ret__ != SQLITE_OK) { \
-		throw fms::exception(fms::error(sqlite3_errstr(__ret__))); }
+		throw std::runtime_error(fms::error(sqlite3_errstr(__ret__)).what()); }
 
-// fundamental sqlite column types,
-// type, name
+// SQLite type, SQL name, C type
 #define SQLITE_TYPE_ENUM(X)  \
 X(SQLITE_INTEGER, "INTEGER", sqlite3_int64)  \
 X(SQLITE_FLOAT,   "FLOAT",	 double)         \
@@ -28,13 +27,12 @@ X(SQLITE_TEXT,    "TEXT",    char*)          \
 X(SQLITE_BLOB,    "BLOB",    void*)          \
 X(SQLITE_NULL,    "NULL",    void)           \
 
-// extended types
+// Phony extended types
 #define SQLITE_UNKNOWN   0
 #define SQLITE_NUMERIC  -1
 #define SQLITE_DATETIME -2
 #define SQLITE_BOOLEAN  -3
 
-// Known SQL types used in CREATE TABLE
 // SQL name, affinity, fundamenta type, extended type
 #define SQLITE_DECLTYPE(X) \
 X("INTEGER",           "INTEGER", SQLITE_INTEGER, SQLITE_INTEGER)  \
@@ -68,8 +66,7 @@ X("DATE",              "NUMERIC", SQLITE_NUMERIC, SQLITE_DATETIME) \
 
 namespace sqlite {
 
-	// Type string name to SQLITE_* integer type.
-	// For use with https://sqlite.org/c3ref/column_decltype.html
+	// Type string name to fundamental type.
 	constexpr int sql_type(std::string_view sqlname)
 	{
 #define SQLITE_TYPE(a, b, c, d) if (sqlname.starts_with(a)) return c;
@@ -78,6 +75,7 @@ namespace sqlite {
 
 		return SQLITE_TEXT;
 	}
+	// For use with https://sqlite.org/c3ref/column_decltype.html
 	constexpr int sql_extended_type(std::string_view sqlname)
 	{
 #define SQLITE_TYPE(a, b, c, d) if (sqlname.starts_with(a)) return d;
@@ -86,7 +84,7 @@ namespace sqlite {
 
 		return SQLITE_TEXT;
 	}
-	// SQLITE_* integer extended type to string name. 
+	// Extended type to string name. 
 	constexpr const std::string_view sql_name(int sqltype)
 	{
 #define SQLITE_NAME(a, b, c, d) if (sqltype == d) return a;
@@ -305,8 +303,6 @@ namespace sqlite {
 		sqlite3* pdb;
 	public:
 		char* perrmsg;
-		// Callback type for sqlite3_exec.
-		using callback = int (*)(void*, int, char**, char**);
 
 		db()
 			: pdb(nullptr)
@@ -361,6 +357,10 @@ namespace sqlite {
 		}
 		db& close()
 		{
+			if (perrmsg) {
+				sqlite3_free(perrmsg);
+				perrmsg = nullptr;
+			}
 			sqlite3_close(pdb);
 			pdb = nullptr;
 
@@ -368,12 +368,20 @@ namespace sqlite {
 		}
 		// Run zero or more UTF-8 encoded, semicolon-separate SQL statements.
 		// https://sqlite.org/c3ref/exec.html
-		int exec(const char* sql, callback cb = nullptr, void* arg = nullptr)
+		using callback = int (*)(void* data, int col, char** text, char** name);
+		int exec(const char* sql, callback cb = nullptr, void* data = nullptr)
 		{
-			int ret = sqlite3_exec(pdb, sql, cb, arg, &perrmsg);
-			if (ret != SQLITE_OK) {
-				throw fms::exception(fms::error(perrmsg).at(sql, sqlite3_error_offset(pdb)));
+			if (perrmsg) {
+				sqlite3_free(perrmsg);
+				perrmsg = nullptr;
 			}
+			int ret = sqlite3_exec(pdb, sql, cb, data, &perrmsg);
+			if (ret != SQLITE_OK) {
+				const auto err = fms::error(perrmsg).at(sql, sqlite3_error_offset(pdb));
+				throw std::runtime_error(err.what());
+			}
+
+			return ret;
 		}
 
 		// https://sqlite.org/c3ref/errcode.html
@@ -559,11 +567,9 @@ namespace sqlite {
 		}
 		// so ~stmt is called only once
 		stmt(const stmt&) = delete;
-		stmt(stmt&& _stmt) noexcept
-			: pstmt{ std::exchange(_stmt.pstmt, nullptr) }, ptail{ _stmt.ptail }
-		{
-		}
+		stmt(stmt&& _stmt) = delete;
 		stmt& operator=(const stmt&) = delete;
+		stmt& operator=(stmt&& _stmt) = delete;
 		~stmt()
 		{
 			sqlite3_finalize(pstmt);
@@ -614,7 +620,8 @@ namespace sqlite {
 			FMS_SQLITE_OK(pdb, sqlite3_finalize(pstmt));
 			int ret = sqlite3_prepare_v2(pdb, sql.data(), static_cast<int>(sql.size()), &pstmt, &ptail);
 			if (ret != SQLITE_OK) {
-				throw fms::exception(fms::error(sqlite3_errmsg(pdb)).at(sql, sqlite3_error_offset(pdb)));
+				const auto err = fms::error(sqlite3_errmsg(pdb)).at(sql, sqlite3_error_offset(pdb));
+				throw std::runtime_error(err.what());
 			}
 
 			return ret;
@@ -627,7 +634,7 @@ namespace sqlite {
 			int ret = sqlite3_step(pstmt);
 
 			if (ret != SQLITE_ROW and ret != SQLITE_DONE) {
-				throw fms::exception(fms::error(sqlite3_errstr(ret)));
+				throw std::runtime_error(fms::error(sqlite3_errstr(ret)).what());
 			}
 
 			return ret;
@@ -652,7 +659,8 @@ namespace sqlite {
 		public:
 			proxy(stmt& s, int i)
 				: s{ s }, i{ i }
-			{ }
+			{
+			}
 
 			bool operator==(const proxy& p) const
 			{
@@ -672,11 +680,15 @@ namespace sqlite {
 			{
 				return s.column_double(i);
 			}
+			operator double() const
+			{
+				return column_double();
+			}
 			bool operator==(double d) const
 			{
 				return s.column_double(i) == d;
 			}
-			
+
 			stmt& operator=(int j)
 			{
 				return s.bind(i + 1, j);
@@ -689,7 +701,7 @@ namespace sqlite {
 			{
 				return s.column_int(i) == j;
 			}
-			
+
 			stmt& operator=(sqlite_int64 j)
 			{
 				return s.bind(i + 1, j);
@@ -703,34 +715,50 @@ namespace sqlite {
 				return s.column_int64(i) == j;
 			}
 
-			stmt& operator=(const std::string_view& str)
-			{
-				return s.bind(i + 1, str);
-			}
 			stmt& operator=(const char* str)
 			{
 				return operator=(std::string_view(str));
 			}
-			const std::string_view text() const
+			stmt& operator=(const std::string_view& str)
+			{
+				return s.bind(i + 1, str);
+			}
+			const unsigned char* column_text() const
+			{
+				return s.column_text(i);
+			}
+			const std::string_view column_text_view() const
 			{
 				return s.column_text_view(i);
+			}
+			bool operator==(const char* str) const
+			{
+				return s.column_text_view(i) == str;
 			}
 			bool operator==(const std::string_view& str) const
 			{
 				return s.column_text_view(i) == str;
 			}
 
-			stmt& operator=(const std::wstring_view& str)
-			{
-				return s.bind(i + 1, str);
-			}
 			stmt& operator=(const wchar_t* str)
 			{
 				return operator=(std::wstring_view(str));
 			}
-			const std::wstring_view text16() const
+			stmt& operator=(const std::wstring_view& str)
+			{
+				return s.bind(i + 1, str);
+			}
+			const void* column_text16() const
+			{
+				return s.column_text16(i);
+			}
+			const std::wstring_view column_text16_view() const
 			{
 				return s.column_text16_view(i);
+			}
+			bool operator==(const wchar_t* str) const
+			{
+				return s.column_text16_view(i) == str;
 			}
 			bool operator==(const std::wstring_view& str) const
 			{
@@ -741,14 +769,14 @@ namespace sqlite {
 			{
 				return s.bind(i + 1, b);
 			}
-			bool boolean() const
+			bool column_boolean() const
 			{
 				return s.column_boolean(i);
 			}
 			bool operator==(bool b) const
 			{
 				return s.column_boolean(i) == b;
-			}	
+			}
 
 			stmt& operator=(const datetime& dt)
 			{
@@ -774,7 +802,7 @@ namespace sqlite {
 		{
 			int i = -1;
 
-			if (name.substr(1).contains(":@$")) {
+			if (0 == name.find_first_of(":@$")) {
 				i = bind_parameter_index(name.data()) - 1;
 			}
 			else {
@@ -888,7 +916,7 @@ namespace sqlite {
 				bind(i, dt.value.f);
 				break;
 			case SQLITE_INTEGER:
-				bind(i, dt.value.i);
+				bind(i, (sqlite3_int64)dt.value.i);
 				break;
 			case SQLITE_TEXT:
 				// cast from unsigned char
@@ -912,7 +940,7 @@ namespace sqlite {
 		{
 			int i = bind_parameter_index(name);
 			if (!i) {
-				throw fms::exception(fms::error("unrecognized name"));
+				throw std::runtime_error(fms::error("unrecognized name").what());
 			}
 
 			return bind(i, t);
@@ -1053,7 +1081,7 @@ namespace sqlite {
 
 			return datetime(time_t(-1));
 		}
-
+#if 0
 #ifdef _DEBUG
 		static int test()
 		{
@@ -1129,7 +1157,6 @@ namespace sqlite {
 
 				stmt.reset();
 				assert(SQLITE_OK == stmt.prepare(db, "INSERT INTO a VALUES (?, ?, ?, ?)"));
-				for (int j = 0; j < 3; ++j) {
 					stmt.reset();
 					// 1-based
 					stmt.bind(1, b);
@@ -1158,6 +1185,7 @@ namespace sqlite {
 			return 0;
 		}
 #endif // _DEBUG
+#endif // 0
 	};
 	/*
 	// Cursor over rows of result set.

@@ -49,11 +49,5 @@ namespace fms {
 
 	};
 
-	// throw exception(error(mesg).at(near, here));
-	inline auto exception(const error& e)
-	{
-		return std::exception(e.what());
-	}
-
 
 } // namespace fms
