@@ -1,7 +1,7 @@
 cmake_minimum_required (VERSION 3.8)
 project (fms_sqlite
   VERSION 0.0.1 # https://semver.org/spec/v0.1.0.html
-  DESCRIPTION "C++ wrappers for sqlite"
+  DESCRIPTION "C++ wrapper for sqlite"
   HOMEPAGE_URL "https://github.com/keithalewis/fms_sqlite"
   LANGUAGES C CXX
 )
@@ -13,5 +13,5 @@ endif()
 if(MSVC)
 	target_link_libraries(fms_sqlite)
 endif()
-target_compile_features(fms_sqlite PUBLIC cxx_std_20)
+target_compile_features(fms_sqlite PUBLIC cxx_std_23)
 enable_testing()

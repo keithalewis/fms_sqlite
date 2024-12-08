@@ -3,6 +3,12 @@
 A parsimonious header only C++ wrapper for the 
 [SQLite C API](https://www.sqlite.org/c3ref/intro.html)
 that is faithul to its naming conventions.
+This library encourages using the SQLite C API directly
+by providing operator overloads for the pointers to the fundamental
+`sqlite3` and `sqlite3_stmt` structs.
+The most common functions in the SQLite C API are wrapped using a
+uniform naming convention. 
+For example, `sqlite3_stmt_column_int` is `sqlite::stmt::column_int`.
 
 Although SQLite is the most
 [widely deployed and used](https://www.sqlite.org/mostdeployed.html)
@@ -13,7 +19,9 @@ SQL statements that work on statically typed databases
 work the same way in SQLite. 
 However, the dynamic typing in SQLite allows it to do things which are not possible 
 in traditional rigidly typed databases. 
-The datatype of a value is associated with the value itself, not with its container. 
+The datatype of a value is associated with the value itself, not with its container.
+SQLite uses the `sqlite3_value` struct when converting the bits contained in 
+SQLite to a C type, but users almost never use it directly.
 
 The two main SQLite C structs are 
 [`sqlite3`](https://sqlite.org/c3ref/sqlite3.html), 
@@ -25,16 +33,13 @@ They provide `operator sqlite3*() const noexcept`
 and `operator sqlite3_stmt*() const noexcept` member functions
 so they can be passed as arguments to any SQLite C API function.
 The `fms_sqlite` library does not wrap all of the functions in the SQLite C API.
+This is a feature.
 
-An important but less understood SQLite C struct is 
-[`sqlite3_value`](https://sqlite.org/c3ref/value.html).
-It is used to convert the bits c contained in SQLite to a C type.
-
-## Example
+## Examples
 
 Create an in-memory database.
 ```cpp
-	sqlite::db db(""); // in-memory database
+	sqlite::db db;
 	db.exec("CREATE TABLE t (a INT, b FLOAT, c TEXT)"); // call sqlite3_exec
 ```
 
@@ -43,31 +48,25 @@ Insert values.
 	db.exec("INSERT INTO t VALUES (123, 1.23, 'text')");
 ```
 
-Use a statement to insert values into a database.
-```cpp
-	sqlite::stmt stmt;
-	// Call sqlite3_prepare_v2 for a database.
-	stmt.prepare(db, "INSERT INTO t VALUES (?, ?, ?)");
-	// Bind values to the statement.
-	stmt[0] = 123;   // SQLITE_INTEGER
-	stmt[1] = 1.23;  // SQLITE_FLOAT
-	stmt[2] = "text"; // SQLITE_TEXT
-	stmt.step(); // calls sqlite3_step(stmt);
-```
-
 Query the database.
 ```cpp
-	stmt.prepare(db, "SELECT * FROM t");
+	sqlite::stmt stmt;
+	stmt.prepare(db, "SELECT * FROM t"); // calls sqlite3_prepare_v2
 	assert(SQLITE_ROW == stmt.step());
-	assert(stmt[0] == 123);
-	assert(stmt[1] == 1.23);
-	assert(stmt[2] == "text");
+	assert(stmt[0] == 123); // calls sqlite3_column_int(stmt, 0)
+	assert(stmt["b"] == 1.23); // calls sqlite3_column_double(stmt, 1)
+	assert(stmt[2] == "text"); // calls sqlite::stmt::column_text_view(stmt, 2)
 	assert(SQLITE_DONE == stmt.step());
 ```
 
-The C++ wrapper is faithful to the SQLite C API naming conventions.
-
-The SQLite value object https://www.sqlite.org/c3ref/value.html
+There is no SQLite C API `sqlite3_column_text_view` function that returns a 
+C++ [`std::string_view`](https://en.cppreference.com/w/cpp/string/basic_string_view).
+The `fms_sqlite` library calls `sqlite3_column_text` and 
+`sqlite_column_bytes` to construct a `std::string_view`.
+The `sqlite::stmt::operator[]` function returns a `sqlite::stmt::proxy` object
+to mediate the conversion of the internal SQLite column values to C++ types.
+It's argument can be the 0-based column index or the column name
+returned by `sqlite3_column_name`.
 
 On Unix platforms with g++ type `make check` to build tests and run valgrind.
 

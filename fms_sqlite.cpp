@@ -22,6 +22,8 @@ int test_error()
 	}
 	catch (const std::exception& ex) {
 		std::cerr << ex.what() << '\n';
+		// near: DROP !@#$
+		// here: -----^
 	}
 
 	return 0;
