@@ -563,7 +563,11 @@ namespace sqlite {
 	public:
 		stmt()
 			: pstmt{ nullptr }, ptail{ nullptr }
+		{ }
+		stmt(sqlite3* pdb, const std::string_view& sql)
+			: pstmt{ nullptr }, ptail{ nullptr }
 		{
+			prepare(pdb, sql);
 		}
 		// so ~stmt is called only once
 		stmt(const stmt&) = delete;
@@ -652,7 +656,7 @@ namespace sqlite {
 			return sqlite3_clear_bindings(pstmt);
 		}
 
-		// 0-based proxy for binding values to stmt.
+		// 0-based proxy for mediating internal SQLite bits to C++ types.
 		class proxy {
 			stmt& s;
 			int i;
@@ -928,7 +932,7 @@ namespace sqlite {
 		}
 
 		// https://sqlite.org/c3ref/bind_parameter_index.html
-		// Name must have the same form as specified in prepare.
+		// Name must have the same form as specified in bind.
 		// E.g., :name, @name, or $name 
 		int bind_parameter_index(const char* name)
 		{

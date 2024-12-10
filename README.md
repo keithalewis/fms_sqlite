@@ -2,11 +2,11 @@
 
 A parsimonious header only C++ wrapper for the 
 [SQLite C API](https://www.sqlite.org/c3ref/intro.html)
-that is faithul to its naming conventions.
+that is faithful to its naming conventions.
 This library encourages using the SQLite C API directly
 by providing operator overloads for the pointers to the fundamental
 `sqlite3` and `sqlite3_stmt` structs.
-The most common functions in the SQLite C API are wrapped using a
+Only the most common functions in the SQLite C API are wrapped and use a
 uniform naming convention. 
 For example, `sqlite3_stmt_column_int` is `sqlite::stmt::column_int`.
 
@@ -17,11 +17,15 @@ SQLite is a
 [self-contained, serverless, zero-configuration, transactional SQL database engine](https://www.sqlite.org/about.html).
 SQL statements that work on statically typed databases 
 work the same way in SQLite. 
-However, the dynamic typing in SQLite allows it to do things which are not possible 
+The dynamic typing in SQLite allows it to do things which are not possible 
 in traditional rigidly typed databases. 
 The datatype of a value is associated with the value itself, not with its container.
-SQLite uses the `sqlite3_value` struct when converting the bits contained in 
-SQLite to a C type, but users almost never use it directly.
+The `fms_sqlite` library uses `sqlite::stmt::proxy` to mediate the conversion from
+internal SQLite dynamic types to C types, but you never need to use this
+class directly. The member function `sqlite::stmt::operator[]` returns a proxy
+given an `int` column index, `char*` column name or bound parameter name.
+that leverages C++ to 
+call the appropriate SQLite C API functions.
 
 The two main SQLite C structs are 
 [`sqlite3`](https://sqlite.org/c3ref/sqlite3.html), 
@@ -50,23 +54,22 @@ Insert values.
 
 Query the database.
 ```cpp
-	sqlite::stmt stmt;
-	stmt.prepare(db, "SELECT * FROM t"); // calls sqlite3_prepare_v2
+	sqlite::stmt stmt(db, "SELECT * FROM t"); // calls sqlite3_prepare_v2
 	assert(SQLITE_ROW == stmt.step());
-	assert(stmt[0] == 123); // calls sqlite3_column_int(stmt, 0)
-	assert(stmt["b"] == 1.23); // calls sqlite3_column_double(stmt, 1)
-	assert(stmt[2] == "text"); // calls sqlite::stmt::column_text_view(stmt, 2)
+	assert(stmt[0] == 123); // proxy calls sqlite3_column_int(stmt, 0)
+	assert(stmt["b"] == 1.23); // proxy calls sqlite3_column_double(stmt, 1)
+	assert(stmt[2] == "text"); // proxy calls sqlite::stmt::column_text_view(stmt, 2)
 	assert(SQLITE_DONE == stmt.step());
 ```
 
+The `sqlite::stmt::operator[]` member function returns a `sqlite::stmt::proxy` object
+that overloads `operator==` to call the appropriate `slqite3_column_` function.
 There is no SQLite C API `sqlite3_column_text_view` function that returns a 
 C++ [`std::string_view`](https://en.cppreference.com/w/cpp/string/basic_string_view).
-The `fms_sqlite` library calls `sqlite3_column_text` and 
-`sqlite_column_bytes` to construct a `std::string_view`.
-The `sqlite::stmt::operator[]` function returns a `sqlite::stmt::proxy` object
-to mediate the conversion of the internal SQLite column values to C++ types.
-It's argument can be the 0-based column index or the column name
-returned by `sqlite3_column_name`.
+The proxy object calls `sqlite3_column_text` and 
+`sqlite_column_bytes` to construct a `std::string_view` return value.
+
+## Installation
 
 On Unix platforms with g++ type `make check` to build tests and run valgrind.
 

@@ -68,8 +68,7 @@ int test_boolean()
 			::db.exec("CREATE TABLE t (b BOOLEAN)");
 			::db.exec("INSERT INTO t (b) VALUES(TRUE)");
 
-			sqlite::stmt stmt;
-			stmt.prepare(::db, "SELECT * FROM t");
+			sqlite::stmt stmt(::db, "SELECT * FROM t");
 			stmt.step();
 			assert(stmt[0].type() == SQLITE_INTEGER);
 			//assert(stmt[0].type() == SQLITE_BOOLEAN);
