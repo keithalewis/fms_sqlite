@@ -1,4 +1,4 @@
-// fms_sqlite.cpp - test platform independent sqlite
+// fms_sqlite.t.cpp - test platform independent sqlite
 #include <cassert>
 #include <iostream>
 #include <iterator>

@@ -15,10 +15,10 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\fms_sqlite.cpp">
+    <ClCompile Include="debug.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="debug.cpp">
+    <ClCompile Include="..\fms_sqlite.t.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -24,6 +24,7 @@
     <ProjectGuid>{007247f1-c28f-4dea-ba53-197c89afa778}</ProjectGuid>
     <RootNamespace>fmssqlitetest</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>fms_sqlite.t</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -135,7 +136,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\fms_sqlite.cpp" />
+    <ClCompile Include="..\fms_sqlite.t.cpp" />
     <ClCompile Include="debug.cpp" />
   </ItemGroup>
   <ItemGroup>
