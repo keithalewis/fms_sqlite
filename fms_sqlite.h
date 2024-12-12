@@ -567,9 +567,8 @@ namespace sqlite {
 		stmt(sqlite3* pdb, const std::string_view& sql)
 			: pstmt{ nullptr }, ptail{ nullptr }
 		{
-			prepare(pdb, sql);
+			FMS_SQLITE_AOK(prepare(pdb, sql));
 		}
-		// so ~stmt is called only once
 		stmt(const stmt&) = delete;
 		stmt(stmt&& _stmt) = delete;
 		stmt& operator=(const stmt&) = delete;
@@ -582,6 +581,11 @@ namespace sqlite {
 		bool operator==(const stmt& stmt) const
 		{
 			return pstmt == stmt.pstmt;
+		}
+
+		int clone(sqlite3_stmt* p)
+		{
+			return SQLITE_OK;
 		}
 
 		const char* tail() const
@@ -1191,50 +1195,10 @@ namespace sqlite {
 #endif // _DEBUG
 #endif // 0
 	};
-	/*
 	// Cursor over rows of result set.
 	// Use `explicit operator bool() const` to detect when done.
 	// cursor c(stmt); while (c) { ... use *c ...; ++c; }
-	class cursor {
-		sqlite3_stmt* pstmt;
-		int ret;
-	public:
-		using iterator_category = std::output_iterator_tag;
-		using value_type = sqlite::stmt_iterable;
-
-		cursor(sqlite3_stmt* pstmt)
-			: pstmt(pstmt), ret{ SQLITE_ROW }
-		{
-			operator++();
-		}
-		cursor(const cursor&) = default;
-		cursor& operator=(const cursor&) = default;
-		~cursor()
-		{
-		}
-
-		bool operator==(const cursor&) const = default;
-
-		explicit operator bool() const noexcept
-		{
-			return SQLITE_DONE != ret;
-		}
-		value_type operator*() const noexcept
-		{
-			return sqlite::stmt_iterable(pstmt);
-		}
-		cursor& operator++()
-		{
-			if (SQLITE_ROW == ret) {
-				ret = sqlite3_step(pstmt);
-				if (!(SQLITE_ROW == ret or SQLITE_DONE == ret)) {
-					throw std::runtime_error(sqlite3_errmsg(sqlite3_db_handle(pstmt)));
-				}
-			}
-
-			return *this;
-		}
-	};
+	/*
 
 	// copy a single row
 	template<class O>

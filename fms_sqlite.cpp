@@ -34,8 +34,8 @@ int test_simple()
 	try {
 		{
 			sqlite::stmt stmt;
-			::db.exec("DROP TABLE IF EXISTS t");
-			::db.exec("CREATE TABLE t (a INT, b FLOAT, c TEXT)");
+			assert(SQLITE_OK == ::db.exec("DROP TABLE IF EXISTS t"));
+			assert(SQLITE_OK == ::db.exec("CREATE TABLE t (a INT, b FLOAT, c TEXT)"));
 
 			stmt.prepare(::db, "INSERT INTO t VALUES (?, ?, :c)");
 			stmt[0] = 123; // calls sqlite3_bind_int(stmt, 0 + 1, 123);
