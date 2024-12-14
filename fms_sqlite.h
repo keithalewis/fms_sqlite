@@ -12,11 +12,24 @@
 #include "fms_error.h"
 #include "fms_parse.h"
 
+// https://briandouglas.ie/sqlite-defaults/
+#define SQLITE_DEFAULTS(X)       \
+    X(journal_mode, WAL)         \
+    X(synchronous,  NORMAL)      \
+    X(busy_timeout, 5000)        \
+    X(cache_size,  -20000)       \
+    X(foreign_keys, ON)          \
+    X(auto_vacuum,  INCREMENTAL) \
+    X(temp_store,   MEMORY)      \
+    X(mmap_size,    2147483648)  \
+    X(page_size,    8192)        \
+
 // call OP and throw on error
 #define FMS_SQLITE_OK(DB, OP) { int __ret__ = OP; if (SQLITE_OK != __ret__) { \
 		throw std::runtime_error(fms::error(sqlite3_errmsg(DB)).what()); } }
 
-#define FMS_SQLITE_AOK(OP) if (int __ret__ = OP; __ret__ != SQLITE_OK) { \
+// TODO: evaluate to __ret__?
+#define FMS_SQLITE_AOK(OP) if (int __ret__ = (OP); __ret__ != SQLITE_OK) { \
 		throw std::runtime_error(fms::error(sqlite3_errstr(__ret__)).what()); }
 
 // SQLite type, SQL name, C type
@@ -267,12 +280,10 @@ namespace sqlite {
 	public:
 		string()
 			: str{ nullptr }
-		{
-		}
+		{ }
 		string(const char* str)
 			: str{ str }
-		{
-		}
+		{ }
 		string(const string&) = delete;
 		string& operator=(const string&) = delete;
 		string(string&& _str) noexcept
@@ -365,6 +376,19 @@ namespace sqlite {
 			pdb = nullptr;
 
 			return *this;
+		}
+		// PRAGMA key = value;
+		template<class T>
+		int pragma(const std::string_view& key, const T& value)
+		{
+			return exec(std::format("PRAGMA {} = {};", key, value).c_str());
+		}
+		int default_pragmas()
+		{
+#define SQLITE_DEFAULT_PRAGMA(a, b) pragma(#a, #b);
+			SQLITE_DEFAULTS(SQLITE_DEFAULT_PRAGMA)
+#undef SQLITE_DEFAULT_PRAGMA
+			return SQLITE_OK;
 		}
 		// Run zero or more UTF-8 encoded, semicolon-separate SQL statements.
 		// https://sqlite.org/c3ref/exec.html
@@ -560,6 +584,7 @@ namespace sqlite {
 	class stmt {
 		sqlite3_stmt* pstmt;
 		const char* ptail;
+		int ret;
 	public:
 		stmt()
 			: pstmt{ nullptr }, ptail{ nullptr }
@@ -591,6 +616,10 @@ namespace sqlite {
 		const char* tail() const
 		{
 			return ptail;
+		}
+		int last() const
+		{
+			return ret;
 		}
 
 		// For use in native sqlite3 C functions.
@@ -626,7 +655,7 @@ namespace sqlite {
 		int prepare(sqlite3* pdb, const std::string_view& sql)
 		{
 			FMS_SQLITE_OK(pdb, sqlite3_finalize(pstmt));
-			int ret = sqlite3_prepare_v2(pdb, sql.data(), static_cast<int>(sql.size()), &pstmt, &ptail);
+			ret = sqlite3_prepare_v2(pdb, sql.data(), static_cast<int>(sql.size()), &pstmt, &ptail);
 			if (ret != SQLITE_OK) {
 				const auto err = fms::error(sqlite3_errmsg(pdb)).at(sql, sqlite3_error_offset(pdb));
 				throw std::runtime_error(err.what());
@@ -639,7 +668,7 @@ namespace sqlite {
 		// https://sqlite.org/c3ref/step.html
 		int step()
 		{
-			int ret = sqlite3_step(pstmt);
+			ret = sqlite3_step(pstmt);
 
 			if (ret != SQLITE_ROW and ret != SQLITE_DONE) {
 				throw std::runtime_error(fms::error(sqlite3_errstr(ret)).what());
@@ -651,13 +680,13 @@ namespace sqlite {
 		// https://sqlite.org/c3ref/reset.html
 		int reset()
 		{
-			return sqlite3_reset(pstmt);
+			return ret = sqlite3_reset(pstmt);
 		}
 		// Reset bindings to NULL.
 		// https://www.sqlite.org/c3ref/clear_bindings.html
 		int clear_bindings()
 		{
-			return sqlite3_clear_bindings(pstmt);
+			return ret = sqlite3_clear_bindings(pstmt);
 		}
 
 		// 0-based proxy for mediating internal SQLite bits to C++ types.
@@ -667,8 +696,10 @@ namespace sqlite {
 		public:
 			proxy(stmt& s, int i)
 				: s{ s }, i{ i }
-			{
-			}
+			{ }
+			proxy(const proxy&) = default;
+			proxy& operator=(const proxy&) = default;
+			~proxy() = default;
 
 			bool operator==(const proxy& p) const
 			{
@@ -709,6 +740,10 @@ namespace sqlite {
 			{
 				return s.column_int(i) == j;
 			}
+			operator int() const
+			{
+				return column_int();
+			}
 
 			stmt& operator=(sqlite_int64 j)
 			{
@@ -721,6 +756,10 @@ namespace sqlite {
 			bool operator==(sqlite_int64 j) const
 			{
 				return s.column_int64(i) == j;
+			}
+			operator sqlite_int64() const
+			{
+				return column_int64();
 			}
 
 			stmt& operator=(const char* str)
@@ -747,6 +786,10 @@ namespace sqlite {
 			{
 				return s.column_text_view(i) == str;
 			}
+			operator const std::string_view() const
+			{
+				return column_text_view();
+			}
 
 			stmt& operator=(const wchar_t* str)
 			{
@@ -772,6 +815,10 @@ namespace sqlite {
 			{
 				return s.column_text16_view(i) == str;
 			}
+			operator const std::wstring_view() const
+			{
+				return column_text16_view();
+			}
 
 			stmt& operator=(bool b)
 			{
@@ -785,6 +832,10 @@ namespace sqlite {
 			{
 				return s.column_boolean(i) == b;
 			}
+			operator bool() const
+			{
+				return column_boolean();
+			}
 
 			stmt& operator=(const datetime& dt)
 			{
@@ -797,6 +848,10 @@ namespace sqlite {
 			bool operator==(const datetime& dt) const
 			{
 				return s.column_datetime(i) == dt;
+			}
+			operator const datetime() const
+			{
+				return column_datetime();
 			}
 		};
 
@@ -844,7 +899,7 @@ namespace sqlite {
 		// null
 		stmt& bind(int i)
 		{
-			FMS_SQLITE_OK(db_handle(), sqlite3_bind_null(pstmt, i));
+			FMS_SQLITE_AOK(ret = sqlite3_bind_null(pstmt, i));
 
 			return *this;
 		}
@@ -1272,5 +1327,20 @@ namespace sqlite {
 		stmt.step();
 	}
 	*/
+	/*
+	class transaction {
+		sqlite::stmt stmt;
+	public:
+		enum class mode {
+			deferred,
+			immediate,
+			exclusive,
+		};
+	
+		transaction(sqlite3* pdb, mode m = mode::deferred)
+		{
+		}
+	};
 
+	*/
 } // sqlite
