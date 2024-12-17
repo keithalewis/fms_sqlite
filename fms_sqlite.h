@@ -287,9 +287,8 @@ namespace sqlite {
 		string(const string&) = delete;
 		string& operator=(const string&) = delete;
 		string(string&& _str) noexcept
-		{
-			*this = std::move(_str);
-		}
+			: str{ std::exchange(_str.str, nullptr) }
+		{ }
 		string& operator=(string&& _str) noexcept
 		{
 			if (this != &_str) {
@@ -633,7 +632,7 @@ namespace sqlite {
 		{
 			return sqlite3_sql(pstmt);
 		}
-		string expanded_sql() const
+		const string expanded_sql() const
 		{
 			return sqlite3_expanded_sql(pstmt);
 		}
@@ -1144,166 +1143,51 @@ namespace sqlite {
 
 			return datetime(time_t(-1));
 		}
-#if 0
-#ifdef _DEBUG
-		static int test()
-		{
-			int ret = SQLITE_OK;
-			//const char* s = nullptr;
 
-			try {
-				db db("a.db");
-				{
-					sqlite3_stmt* stmt;
-					sqlite3_prepare_v2(db, "SELECT 1", -1, &stmt, 0);
-					sqlite3* pdb = sqlite3_db_handle(stmt);
-					sqlite3_finalize(stmt);
-					assert(pdb);
-				}
-				stmt stmt{};
-
-				std::string_view sql("DROP TABLE IF EXISTS a");
-				assert(SQLITE_OK == stmt.prepare(db, sql));
-				stmt.step();
-				stmt.reset();
-
-				sql = "CREATE TABLE a (b INT, c REAL, d TEXT, e DATETIME)";
-				assert(SQLITE_OK == stmt.prepare(db, sql));
-				assert(sql == stmt.sql());
-				assert(SQLITE_DONE == stmt.step());
-				assert(0 == stmt.column_count());
-
-				stmt.reset();
-				assert(SQLITE_OK == stmt.prepare(db, "INSERT INTO a VALUES (123, 1.23, 'foo', "
-					"'2023-04-05')")); // datetime must be YYYY-MM-DD HH:MM:SS.SSS
-				ret = stmt.step();
-				assert(SQLITE_DONE == ret);
-
-				stmt.reset();
-				stmt.prepare(db, "SELECT * FROM a");
-				int rows = 0;
-
-				while (SQLITE_ROW == stmt.step()) {
-					assert(4 == stmt.column_count());
-					assert(SQLITE_INTEGER == stmt.column_type(0));
-					assert(stmt.column_int(0) == 123);
-					assert(stmt[0] == 123);
-					assert(stmt["b"] == 123);
-					assert(SQLITE_FLOAT == stmt.column_type(1));
-					assert(stmt.column_double(1) == 1.23);
-					assert(stmt[1] == 1.23);
-					assert(stmt["c"] == 1.23);
-					assert(SQLITE_TEXT == stmt.column_type(2));
-					assert(0 == strcmp((const char*)stmt.column_text(2), "foo"));
-					assert(SQLITE_TEXT == stmt.column_type(3));
-					//assert(SQLITE_DATETIME == stmt.sqltype(3));
-					//!!!assert(stmt.column_datetime(3) == datetime("2023-04-05"));
-					++rows;
-				}
-				assert(1 == rows);
-
-				int b = 2;
-				double c = 2.34;
-				char d[2] = { 'a', 0 };
-
-				stmt.reset();
-				stmt.prepare(db, "SELECT unixepoch(e) from a");
-				stmt.step();
-				time_t e = stmt.column_int64(0);
-
-				// fix up column e to time_t
-				// DATEIME column must be homogeneous
-				stmt.reset();
-				stmt.prepare(db, "UPDATE a SET e = ?");
-				stmt.bind(1, e);
-				stmt.step();
-
-				stmt.reset();
-				assert(SQLITE_OK == stmt.prepare(db, "INSERT INTO a VALUES (?, ?, ?, ?)"));
-					stmt.reset();
-					// 1-based
-					stmt.bind(1, b);
-					stmt.bind(2, c);
-					stmt.bind(3, d);
-					stmt.bind(4, datetime(e));
-					stmt.step();
-
-					++b;
-					c += 0.01;
-					d[0] = d[0] + 1;
-					e += 86400;
-				}
-
-				stmt.reset();
-				stmt.prepare(db, "select count(*) from a");
-				assert(SQLITE_ROW == stmt.step());
-				assert(1 == stmt.column_count());
-				assert(stmt.column_int(0) == 4);
-				assert(SQLITE_DONE == stmt.step());
-			}
-			catch (const std::exception& ex) {
-				puts(ex.what());
-			}
-
-			return 0;
-		}
-#endif // _DEBUG
-#endif // 0
 	};
-	// Cursor over rows of result set.
-	// Use `explicit operator bool() const` to detect when done.
-	// cursor c(stmt); while (c) { ... use *c ...; ++c; }
+
+	enum class transaction_mode {
+		deferred,
+		immediate,
+		exclusive,
+	};
+
+	// Execute prepared statement as a transaction.
+	// Consumes stmt, commit if succesfull, rollback otherwise.
+	// https://sqlite.org/lang_transaction.html
+	int transact(stmt& s, transaction_mode mode = transaction_mode::deferred)
+	{
+		stmt t;
+
+		const char* trans = nullptr;
+		switch (mode) {
+		case transaction_mode::immediate:
+			trans = "BEGIN TRANSACTION IMMEDIATE;";
+			break;
+		case transaction_mode::exclusive:
+			trans = "BEGIN TRANSACTION EXCLUSIVE;";
+			break;
+		default:
+			trans = "BEGIN TRANSACTION DEFERRED;";
+		}
+		FMS_SQLITE_AOK(sqlite3_exec(s.db_handle(), trans, 0, 0, 0));
+		
+		try {
+			while (SQLITE_ROW == s.step())
+				;
+		}
+		catch (const std::exception& ex) {
+			int ret = sqlite3_exec(s.db_handle(), "ROLLBACK TRANSACTION;", 0, 0, 0);
+			if (SQLITE_OK != ret) {
+				throw std::runtime_error(fms::error(ex.what()).what());
+			}
+		}
+		FMS_SQLITE_AOK(sqlite3_exec(s.db_handle(), "COMMIT TRANSACTION;", 0, 0, 0));
+
+		return s.last(); 
+	}
+#undef TRANSACTION_MODE
 	/*
-
-	// copy a single row
-	template<class O>
-	inline O copy(sqlite::stmt_iterable i, O o)
-	{
-		std::copy(i.begin(), i.end(), o);
-
-		return o;
-	}
-	// copy all rows
-	template<class O>
-	inline O copy(sqlite::stmt& stmt, O o)
-	{
-		sqlite::cursor i(stmt);
-		while (i) {
-			sqlite::stmt_iterable _i = *i;
-			copy(_i, o);
-			++i;
-		}
-
-		return o;
-	}
-	template<class I>
-	inline sqlite::stmt_iterable copy(I i, sqlite::stmt_iterable o)
-	{
-		std::copy(i.begin(), i.end(), o);
-
-		return o;
-	}
-
-	template<class O, class F>
-	inline O map(sqlite::stmt_iterable i, O o, F f)
-	{
-		std::transform(i.begin(), i.end(), o, f);
-
-		return o;
-	}
-	template<class O, class F>
-	inline O map(sqlite::stmt& stmt, O o, F f)
-	{
-		sqlite::cursor i(stmt);
-		while (i) {
-			sqlite::stmt_iterable _i = *i;
-			map(_i, o, f);
-			++i;
-		}
-
-		return o;
-	}
-
 	// Wrap sql in a transaction.
 	inline void transaction(sqlite3* pdb, void(*op)())
 	{
