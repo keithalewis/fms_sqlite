@@ -14,7 +14,7 @@ namespace fms {
 	public:
 		// file: <file>
 		// line: <line>
-		// [func: <func>]
+		//[func: <func>]
 		// mesg: <mesg>
 		error(const std::string_view& mesg, const std::source_location& loc = std::source_location::current())
 			: message{ std::format("file: {}\nline: {}", loc.file_name(), loc.line()) }
@@ -42,6 +42,7 @@ namespace fms {
 			return *this;
 		}
 
+		// throw std::runtime_error(error("mesg")[.at("near", here)].what());
 		const char* what() const noexcept
 		{
 			return message.c_str();

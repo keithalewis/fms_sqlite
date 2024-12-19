@@ -8,7 +8,7 @@
 #include <stdexcept>
 #include <utility>
 #define SQLITE_ENABLE_NORMALIZE
-#include "sqlite-amalgamation-3460000/sqlite3.h"
+#include "sqlite-amalgamation-3470200/sqlite3.h"
 #include "fms_error.h"
 #include "fms_parse.h"
 
@@ -32,7 +32,7 @@
 #define FMS_SQLITE_AOK(OP) if (int __ret__ = (OP); __ret__ != SQLITE_OK) { \
 		throw std::runtime_error(fms::error(sqlite3_errstr(__ret__)).what()); }
 
-// SQLite type, SQL name, C type
+// Fundamental SQLite type, SQL name, C type
 #define SQLITE_TYPE_ENUM(X)  \
 X(SQLITE_INTEGER, "INTEGER", sqlite3_int64)  \
 X(SQLITE_FLOAT,   "FLOAT",	 double)         \
@@ -80,7 +80,7 @@ X("DATE",              "NUMERIC", SQLITE_NUMERIC, SQLITE_DATETIME) \
 namespace sqlite {
 
 	// Type string name to fundamental type.
-	constexpr int sql_type(std::string_view sqlname)
+	constexpr int sql_type(const std::string_view& sqlname)
 	{
 #define SQLITE_TYPE(a, b, c, d) if (sqlname.starts_with(a)) return c;
 		SQLITE_DECLTYPE(SQLITE_TYPE);
@@ -312,7 +312,7 @@ namespace sqlite {
 	class db {
 		sqlite3* pdb;
 	public:
-		char* perrmsg;
+		char* perrmsg; // might not be the same as sqlite3_errmsg()
 
 		db()
 			: pdb(nullptr)
@@ -333,15 +333,15 @@ namespace sqlite {
 			close();
 		}
 
-		bool operator==(const db& db) const
-		{
-			return pdb == db.pdb;
-		}
-
 		// For use in the sqlite C API.
 		operator sqlite3* ()
 		{
 			return pdb;
+		}
+
+		bool operator==(const db& db) const
+		{
+			return pdb == db.pdb;
 		}
 
 		// https://sqlite.org/c3ref/open.html
