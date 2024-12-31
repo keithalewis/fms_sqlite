@@ -1159,7 +1159,7 @@ namespace sqlite {
 	{
 		stmt t;
 
-		const char* trans = nullptr;
+		const char* trans;
 		switch (mode) {
 		case transaction_mode::immediate:
 			trans = "BEGIN TRANSACTION IMMEDIATE;";
@@ -1167,8 +1167,10 @@ namespace sqlite {
 		case transaction_mode::exclusive:
 			trans = "BEGIN TRANSACTION EXCLUSIVE;";
 			break;
+		case transaction_mode::deferred:
 		default:
 			trans = "BEGIN TRANSACTION DEFERRED;";
+			break;
 		}
 		FMS_SQLITE_AOK(sqlite3_exec(s.db_handle(), trans, 0, 0, 0));
 		
@@ -1186,45 +1188,5 @@ namespace sqlite {
 
 		return s.last(); 
 	}
-#undef TRANSACTION_MODE
-	/*
-	// Wrap sql in a transaction.
-	inline void transaction(sqlite3* pdb, void(*op)())
-	{
-		sqlite3* pdb = sqlite3_db_handle(pstmt);
-		sqlite::stmt stmt(pdb);
-		stmt.prepare("BEGIN TRANSACTION");
-		stmt.step();
 
-		try {
-			op();
-		}
-		catch (const std::exception&) {
-			stmt.reset();
-			stmt.prepare("ROLLBACK TRANSACTION");
-			stmt.step();
-		}
-
-		stmt.reset();
-		stmt.prepare("COMMIT TRANSACTION");
-		// check for SQLITE_BUSY and retry???
-		stmt.step();
-	}
-	*/
-	/*
-	class transaction {
-		sqlite::stmt stmt;
-	public:
-		enum class mode {
-			deferred,
-			immediate,
-			exclusive,
-		};
-	
-		transaction(sqlite3* pdb, mode m = mode::deferred)
-		{
-		}
-	};
-
-	*/
 } // sqlite
