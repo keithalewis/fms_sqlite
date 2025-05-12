@@ -46,7 +46,7 @@ X(SQLITE_NULL,    "NULL",    void)           \
 #define SQLITE_DATETIME -2
 #define SQLITE_BOOLEAN  -3
 
-// SQL name, affinity, fundamenta type, extended type
+// SQL name, affinity, fundamental type, extended type
 #define SQLITE_DECLTYPE(X) \
 X("INTEGER",           "INTEGER", SQLITE_INTEGER, SQLITE_INTEGER)  \
 X("INT",               "INTEGER", SQLITE_INTEGER, SQLITE_INTEGER)  \
@@ -141,7 +141,6 @@ namespace sqlite {
 #undef TEST_SQLITE_AFFINITY
 #endif // _DEBUG
 
-	// TODO: std::quote?
 	// left and right quotes
 	constexpr std::string quote(const std::string_view& s, char l, char r)
 	{
@@ -173,7 +172,7 @@ namespace sqlite {
 		int type;
 
 		datetime()
-			: value{ .i = -1 }
+			: value{ .i = -1 }, type{ SQLITE_INTEGER }
 		{
 		}
 		explicit datetime(double f) noexcept
