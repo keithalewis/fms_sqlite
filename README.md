@@ -4,7 +4,7 @@ A parsimonious header only C++ wrapper for the
 [SQLite C API](https://www.sqlite.org/c3ref/intro.html)
 that is faithful to its naming conventions.
 This library encourages using the SQLite C API directly
-by providing operator overloads for the pointers to the fundamental
+by providing operator overloads for pointers to the fundamental
 `sqlite3` and `sqlite3_stmt` structs.
 Only the most common functions in the SQLite C API are wrapped and use a
 uniform naming convention. 

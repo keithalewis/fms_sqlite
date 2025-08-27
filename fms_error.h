@@ -9,7 +9,7 @@
 namespace fms {
 
 	// Error string base on souce location.
-	class error {
+	class error : public std::exception {
 		std::string message;
 	public:
 		// file: <file>
@@ -42,8 +42,8 @@ namespace fms {
 			return *this;
 		}
 
-		// throw std::runtime_error(error("mesg")[.at("near", here)].what());
-		const char* what() const noexcept
+		// throw error("mesg")[.at("near", here)];
+		const char* what() const noexcept override
 		{
 			return message.c_str();
 		}
