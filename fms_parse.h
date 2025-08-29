@@ -35,11 +35,12 @@ namespace fms {
 
 		return 0;
 	}
+#ifdef _DEBUG
 	static_assert(compare("abc", "abc") == 0);
 	static_assert(compare("abc", "abc", 3) == 0);
 	static_assert(compare("abc", "cbd", 3) < 0);
 	static_assert(compare("bc", "abc", 2) > 0);
-
+#endif // _DEBUG
 	template<class T>
 	constexpr bool is_space(T t)
 	{

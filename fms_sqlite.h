@@ -151,6 +151,9 @@ namespace sqlite {
 
 		return t;
 	}
+#ifdef _DEBUG
+	static_assert(quote("abc", '[', ']') == "[abc]");
+#endif // _DEBUG
 	// surround table name with [name]
 	constexpr std::string table_name(const std::string_view& table)
 	{
