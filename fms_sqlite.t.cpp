@@ -33,18 +33,18 @@ int test_simple()
 {
 	try {
 		{
-			sqlite::stmt stmt;
 			assert(SQLITE_OK == ::db.exec("DROP TABLE IF EXISTS t"));
 			assert(SQLITE_OK == ::db.exec("CREATE TABLE t (a INT, b FLOAT, c TEXT)"));
 
-			stmt.prepare(::db, "INSERT INTO t VALUES (?, ?, :c)");
+			sqlite::stmt stmt(::db);
+			stmt.prepare("INSERT INTO t VALUES (?, ?, :c)");
 			stmt[0] = 123; // calls sqlite3_bind_int(stmt, 0 + 1, 123);
 			stmt[1] = 1.23;
 			stmt[":c"] = "str"; // bind parameter name
 
 			assert(SQLITE_DONE == stmt.step());
 
-			stmt.prepare(::db, "SELECT * FROM t");
+			stmt.prepare("SELECT * FROM t");
 			stmt.step();
 			assert(stmt[0] == 123);
 			assert(stmt["b"] == 1.23); // lookup by name
@@ -68,7 +68,8 @@ int test_boolean()
 			::db.exec("CREATE TABLE t (b BOOLEAN)");
 			::db.exec("INSERT INTO t (b) VALUES(TRUE)");
 
-			sqlite::stmt stmt(::db, "SELECT * FROM t");
+			sqlite::stmt stmt(::db);
+			stmt.prepare("SELECT * FROM t");
 			stmt.step();
 			assert(stmt[0].type() == SQLITE_INTEGER);
 			//assert(stmt[0].type() == SQLITE_BOOLEAN);
@@ -78,7 +79,7 @@ int test_boolean()
 			assert(SQLITE_DONE == stmt.step());
 
 			::db.exec("UPDATE t SET b = FALSE WHERE b = TRUE");
-			stmt.prepare(::db, "SELECT * FROM t");
+			stmt.prepare("SELECT * FROM t");
 			stmt.step();
 			assert(stmt[0].type() == SQLITE_INTEGER);
 			//assert(stmt[0].type() == SQLITE_BOOLEAN);
@@ -105,8 +106,8 @@ int test_datetime()
 			// sqlite doesn't recognize this
 			::db.exec("INSERT INTO dt (t) VALUES('1970-1-2')");
 
-			sqlite::stmt stmt;
-			stmt.prepare(::db, "SELECT t FROM dt");
+			sqlite::stmt stmt(::db);
+			stmt.prepare("SELECT t FROM dt");
 			stmt.step();
 			assert(stmt[0].type() == SQLITE_TEXT);
 			//assert(stmt[0].type() == SQLITE_DATETIME);
@@ -117,7 +118,7 @@ int test_datetime()
 
 			assert(SQLITE_DONE == stmt.step());
 
-			stmt.prepare(::db, "SELECT unixepoch(t) FROM dt");
+			stmt.prepare("SELECT unixepoch(t) FROM dt");
 			stmt.step();
 			t = stmt[0].column_datetime();
 			
@@ -129,7 +130,7 @@ int test_datetime()
 
 			// sqlite wants an ISO 8601 date
 			::db.exec("UPDATE dt SET t = '1970-01-02'");
-			stmt.prepare(::db, "SELECT unixepoch(t) FROM dt");
+			stmt.prepare("SELECT unixepoch(t) FROM dt");
 			stmt.step();
 			t = stmt[0].column_datetime();
 			assert(t.type == SQLITE_INTEGER);
@@ -138,12 +139,12 @@ int test_datetime()
 
 			assert(SQLITE_DONE == stmt.step());
 
-			stmt.prepare(::db, "UPDATE dt SET t = ?");
+			stmt.prepare("UPDATE dt SET t = ?");
 			datetime dt("1970-1-2");
 			dt.to_time_t(); // call fms::parse_tm 
 			stmt.bind(1, dt);
 			stmt.step();
-			stmt.prepare(::db, "SELECT t FROM dt");
+			stmt.prepare("SELECT t FROM dt");
 			stmt.step();
 			assert(stmt.column_type(0) == SQLITE_INTEGER);
 			assert(stmt[0] == 86400);
@@ -277,8 +278,8 @@ void insert(sqlite3* db)
 	::db.exec("DROP TABLE IF EXISTS t");
 	::db.exec("CREATE TABLE t (a INT, b FLOAT, c TEXT, d DATETIME)");
 
-	sqlite::stmt stmt;
-	stmt.prepare(::db, "INSERT INTO t VALUES "
+	sqlite::stmt stmt(::db);
+	stmt.prepare("INSERT INTO t VALUES "
 		"(1, .2, 'a', '2023-04-05'),"
 		"(3, .4, 'b', '2023-04-06');"
 	);

@@ -25,11 +25,11 @@
     X(page_size,    8192)        \
 
 // call OP and throw on error
-#define FMS_SQLITE_OK(DB, OP) { int __ret__ = OP; if (SQLITE_OK != __ret__) { \
+#define FMS_SQLITE_ERRMSG(DB, OP) { int __ret__ = OP; if (SQLITE_OK != __ret__) { \
 		throw std::runtime_error(fms::error(sqlite3_errmsg(DB)).what()); } }
 
 // TODO: evaluate to __ret__?
-#define FMS_SQLITE_AOK(OP) if (int __ret__ = (OP); __ret__ != SQLITE_OK) { \
+#define FMS_SQLITE_ERRSTR(OP) if (int __ret__ = (OP); __ret__ != SQLITE_OK) { \
 		throw std::runtime_error(fms::error(sqlite3_errstr(__ret__)).what()); }
 
 // Fundamental SQLite type, SQL name, C type
@@ -317,7 +317,7 @@ namespace sqlite {
 		char* perrmsg; // might not be the same as sqlite3_errmsg()
 
 		db()
-			: pdb(nullptr)
+			: pdb(nullptr), perrmsg(nullptr)
 		{
 		}
 		// db("") for in-memory database
@@ -356,14 +356,14 @@ namespace sqlite {
 				flags |= SQLITE_OPEN_MEMORY;
 			}
 
-			FMS_SQLITE_AOK(sqlite3_open_v2(filename, &pdb, flags, zVfs));
+			FMS_SQLITE_ERRSTR(sqlite3_open_v2(filename, &pdb, flags, zVfs));
 
 			return *this;
 		}
 		// Default encoding will be UTF-16 in the native byte order.
 		db& open(const wchar_t* filename)
 		{
-			FMS_SQLITE_AOK(sqlite3_open16(filename, &pdb));
+			FMS_SQLITE_ERRSTR(sqlite3_open16(filename, &pdb));
 
 			return *this;
 		}
@@ -386,10 +386,11 @@ namespace sqlite {
 		}
 		int default_pragmas()
 		{
-#define SQLITE_DEFAULT_PRAGMA(a, b) pragma(#a, #b);
+			int ret = SQLITE_OK;
+#define SQLITE_DEFAULT_PRAGMA(a, b) ret = pragma(#a, #b); if (ret != SQLITE_OK) return ret;
 			SQLITE_DEFAULTS(SQLITE_DEFAULT_PRAGMA)
 #undef SQLITE_DEFAULT_PRAGMA
-			return SQLITE_OK;
+			return ret;
 		}
 		// Run zero or more UTF-8 encoded, semicolon-separate SQL statements.
 		// https://sqlite.org/c3ref/exec.html
@@ -588,12 +589,12 @@ namespace sqlite {
 		int ret;
 	public:
 		stmt()
-			: pstmt{ nullptr }, ptail{ nullptr }
+			: pstmt{ nullptr }, ptail{ nullptr }, ret{ SQLITE_OK }
 		{ }
-		stmt(sqlite3* pdb, const std::string_view& sql)
-			: pstmt{ nullptr }, ptail{ nullptr }
+		stmt(sqlite3* pdb)
+			: pstmt{ nullptr }, ptail{ nullptr }, ret{ SQLITE_OK }
 		{
-			FMS_SQLITE_AOK(prepare(pdb, sql));
+			FMS_SQLITE_ERRSTR(sqlite3_prepare_v2(pdb, "SELECT 0", 8, &pstmt, &ptail));
 		}
 		stmt(const stmt&) = delete;
 		stmt(stmt&& _stmt) = delete;
@@ -609,9 +610,9 @@ namespace sqlite {
 			return pstmt == stmt.pstmt;
 		}
 
-		int clone(sqlite3_stmt* p)
+		sqlite3* db_handle() const
 		{
-			return SQLITE_OK;
+			return sqlite3_db_handle(pstmt);
 		}
 
 		const char* tail() const
@@ -653,16 +654,18 @@ namespace sqlite {
 
 		// Compile a SQL statement: https://www.sqlite.org/c3ref/prepare.html
 		// SQL As Understood By SQLite: https://www.sqlite.org/lang.html
-		int prepare(sqlite3* pdb, const std::string_view& sql)
+		int prepare(const char* sql, int size)
 		{
-			FMS_SQLITE_OK(pdb, sqlite3_finalize(pstmt));
-			ret = sqlite3_prepare_v2(pdb, sql.data(), static_cast<int>(sql.size()), &pstmt, &ptail);
-			if (ret != SQLITE_OK) {
-				const auto err = fms::error(sqlite3_errmsg(pdb)).at(sql, sqlite3_error_offset(pdb));
-				throw std::runtime_error(err.what());
-			}
+			sqlite3* pdb = db_handle();
+			if (pdb) FMS_SQLITE_ERRMSG(pdb, sqlite3_finalize(pstmt));
+			FMS_SQLITE_ERRMSG(pdb, sqlite3_prepare_v2(pdb, sql, size, &pstmt, &ptail));
 
-			return ret;
+			return SQLITE_OK;
+		}
+		int prepare(const std::string_view& sv)
+		{
+			std::string s = std::string(sv);
+			return prepare(s.c_str(), static_cast<int>(s.size()));
 		}
 		// int ret = stmt.step();  while (ret == SQLITE_ROW) { ...; ret = stmt.step()) { }
 		// if (ret != SQLITE_DONE) then error
@@ -794,11 +797,13 @@ namespace sqlite {
 
 			stmt& operator=(const wchar_t* str)
 			{
+				return s.bind(i + 1, str);
 				return operator=(std::wstring_view(str));
 			}
 			stmt& operator=(const std::wstring_view& str)
 			{
-				return s.bind(i + 1, str);
+				std::wstring s(str);	
+				return operator=(s.data());
 			}
 			const void* column_text16() const
 			{
@@ -862,12 +867,12 @@ namespace sqlite {
 			return proxy(*this, i);
 		}
 		// name based column
-		proxy operator[](const std::string_view& name)
+		proxy operator[](const char* name)
 		{
 			int i = -1;
 
-			if (0 == name.find_first_of(":@$")) {
-				i = bind_parameter_index(name.data()) - 1;
+			if (0 == std::string_view(name).find_first_of(":@$")) {
+				i = bind_parameter_index(name) - 1;
 			}
 			else {
 				i = column_index(name);
@@ -875,16 +880,21 @@ namespace sqlite {
 
 			return proxy(*this, i);
 		}
-
-		// https://www.sqlite.org/c3ref/bind_parameter_index.html
-		int bind_parameter_index(const std::string_view& name) const
+		proxy operator[](const std::string_view name)
 		{
-			return sqlite3_bind_parameter_index(pstmt, name.data());
+			std::string s(name);
+			return operator[](s.c_str());
 		}
 
-		sqlite3* db_handle() const
+		// https://www.sqlite.org/c3ref/bind_parameter_index.html
+		int bind_parameter_index(const char* name) const
 		{
-			return sqlite3_db_handle(pstmt);
+			return sqlite3_bind_parameter_index(pstmt, name);
+		}
+		int bind_parameter_index(const std::string_view& name) const
+		{
+			std::string s(name);
+			return bind_parameter_index(s.data());
 		}
 
 		//
@@ -900,14 +910,14 @@ namespace sqlite {
 		// null
 		stmt& bind(int i)
 		{
-			FMS_SQLITE_AOK(ret = sqlite3_bind_null(pstmt, i));
+			FMS_SQLITE_ERRSTR(ret = sqlite3_bind_null(pstmt, i));
 
 			return *this;
 		}
 
 		stmt& bind(int i, double d)
 		{
-			FMS_SQLITE_OK(db_handle(), sqlite3_bind_double(pstmt, i, d));
+			FMS_SQLITE_ERRMSG(db_handle(), sqlite3_bind_double(pstmt, i, d));
 
 			return *this;
 		}
@@ -915,48 +925,56 @@ namespace sqlite {
 		// int 
 		stmt& bind(int i, int j)
 		{
-			FMS_SQLITE_OK(db_handle(), sqlite3_bind_int(pstmt, i, j));
+			FMS_SQLITE_ERRMSG(db_handle(), sqlite3_bind_int(pstmt, i, j));
 
 			return *this;
 		}
 		// int64
 		stmt& bind(int i, sqlite_int64 j)
 		{
-			FMS_SQLITE_OK(db_handle(), sqlite3_bind_int64(pstmt, i, j));
+			FMS_SQLITE_ERRMSG(db_handle(), sqlite3_bind_int64(pstmt, i, j));
 
 			return *this;
 		}
 
 		// text, make copy by default
 		// Use SQLITE_STATIC if str will live until sqlite3_step is called.
+		stmt& bind(int i, const char* str, int size = 0, void(*cb)(void*) = SQLITE_TRANSIENT)
+		{
+			if (size == 0) {
+				size = static_cast<int>(strlen(str));
+			}
+			FMS_SQLITE_ERRMSG(db_handle(), sqlite3_bind_text(pstmt, i, str, size, cb));
+
+			return *this;
+		}
 		stmt& bind(int i, const std::string_view& str, void(*cb)(void*) = SQLITE_TRANSIENT)
 		{
-			FMS_SQLITE_OK(db_handle(), sqlite3_bind_text(pstmt, i,
-				str.data(), static_cast<int>(str.size()), cb));
+			std::string s(str);
+			return bind(i, s.c_str(), static_cast<int>(s.size()), cb);
+		}
 
-			return *this;
-		}
-		stmt& bind(int i, const char* str, void(*cb)(void*) = SQLITE_TRANSIENT)
-		{
-			return bind(i, std::string_view(str), cb);
-		}
 		// text16 with length in characters
-		stmt& bind(int i, const std::wstring_view& str, void(*cb)(void*) = SQLITE_TRANSIENT)
+		stmt& bind(int i, const wchar_t* str, int size = 0, void(*cb)(void*) = SQLITE_TRANSIENT)
 		{
-			FMS_SQLITE_OK(db_handle(), sqlite3_bind_text16(pstmt, i,
-				(const void*)str.data(), static_cast<int>(2 * str.size()), cb));
+			if (size == 0) {
+				size = static_cast<int>(wcslen(str));
+			}
+			FMS_SQLITE_ERRMSG(db_handle(), sqlite3_bind_text16(pstmt, i,
+				(const void*)str, 2 * size, cb));
 
 			return *this;
 		}
-		stmt& bind(int i, const wchar_t* str, void(*cb)(void*) = SQLITE_TRANSIENT)
+		stmt& bind(int i, std::wstring_view&  str, void(*cb)(void*) = SQLITE_TRANSIENT)
 		{
-			return bind(i, std::wstring_view(str), cb);
+			std::wstring s(str);
+			return bind(i, s.data(), (int)s.length(), cb);
 		}
 
 		// Default to static.
 		stmt& bind(int i, const void* data, size_t len, void(*cb)(void*) = SQLITE_STATIC)
 		{
-			FMS_SQLITE_OK(db_handle(), sqlite3_bind_blob(pstmt, i,
+			FMS_SQLITE_ERRMSG(db_handle(), sqlite3_bind_blob(pstmt, i,
 				data, static_cast<int>(len), cb));
 
 			return *this;
@@ -968,7 +986,7 @@ namespace sqlite {
 
 		stmt& bind(int i, bool b)
 		{
-			FMS_SQLITE_OK(db_handle(), sqlite3_bind_int(pstmt, i, b));
+			FMS_SQLITE_ERRMSG(db_handle(), sqlite3_bind_int(pstmt, i, b));
 
 			return *this;
 		}
@@ -997,17 +1015,6 @@ namespace sqlite {
 		int bind_parameter_index(const char* name)
 		{
 			return sqlite3_bind_parameter_index(pstmt, name);
-		}
-
-		template<typename T>
-		stmt& bind(const char* name, const T& t)
-		{
-			int i = bind_parameter_index(name);
-			if (!i) {
-				throw std::runtime_error(fms::error("unrecognized name").what());
-			}
-
-			return bind(i, t);
 		}
 
 		//
@@ -1174,7 +1181,7 @@ namespace sqlite {
 			trans = "BEGIN TRANSACTION DEFERRED;";
 			break;
 		}
-		FMS_SQLITE_AOK(sqlite3_exec(s.db_handle(), trans, 0, 0, 0));
+		FMS_SQLITE_ERRSTR(sqlite3_exec(s.db_handle(), trans, 0, 0, 0));
 		
 		try {
 			while (SQLITE_ROW == s.step())
@@ -1186,7 +1193,7 @@ namespace sqlite {
 				throw std::runtime_error(fms::error(ex.what()).what());
 			}
 		}
-		FMS_SQLITE_AOK(sqlite3_exec(s.db_handle(), "COMMIT TRANSACTION;", 0, 0, 0));
+		FMS_SQLITE_ERRSTR(sqlite3_exec(s.db_handle(), "COMMIT TRANSACTION;", 0, 0, 0));
 
 		return s.last(); 
 	}
