@@ -42,7 +42,7 @@ namespace fms {
 			return *this;
 		}
 
-		// throw error("mesg")[.at("near", here)];
+		// throw error("mesg")[.at("near"[, here])];
 		const char* what() const noexcept override
 		{
 			return message.c_str();
