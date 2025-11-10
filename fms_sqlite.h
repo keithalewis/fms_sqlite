@@ -1049,6 +1049,7 @@ namespace sqlite {
 		//
 
 		// Fundamental SQLITE_* type.
+		// https://sqlite.org/c3ref/column_blob.html
 		int column_type(int j) const
 		{
 			return sqlite3_column_type(pstmt, j);
