@@ -22,6 +22,7 @@
 
 namespace fms {
 
+	// compare len or null (len = -1u) terminated array
 	template<class T>
 	constexpr int compare(const T* t, const T* u, size_t len = -1u)
 	{

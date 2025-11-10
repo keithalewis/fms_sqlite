@@ -594,6 +594,7 @@ namespace sqlite {
 		stmt(sqlite3* pdb)
 			: pstmt{ nullptr }, ptail{ nullptr }, ret{ SQLITE_OK }
 		{
+			// store pdb in stmt
 			FMS_SQLITE_ERRSTR(sqlite3_prepare_v2(pdb, "SELECT 0", 8, &pstmt, &ptail));
 		}
 		stmt(const stmt&) = delete;
@@ -654,7 +655,7 @@ namespace sqlite {
 
 		// Compile a SQL statement: https://www.sqlite.org/c3ref/prepare.html
 		// SQL As Understood By SQLite: https://www.sqlite.org/lang.html
-		int prepare(const char* sql, int size)
+		int prepare(const char* sql, int size = -1)
 		{
 			sqlite3* pdb = db_handle();
 			if (pdb) FMS_SQLITE_ERRMSG(pdb, sqlite3_finalize(pstmt));
@@ -665,7 +666,8 @@ namespace sqlite {
 		int prepare(const std::string_view& sv)
 		{
 			std::string s = std::string(sv);
-			return prepare(s.c_str(), static_cast<int>(s.size()));
+			// include null terminator
+			return prepare(s.c_str(), 1 + static_cast<int>(s.size()));
 		}
 		// int ret = stmt.step();  while (ret == SQLITE_ROW) { ...; ret = stmt.step()) { }
 		// if (ret != SQLITE_DONE) then error
@@ -701,9 +703,6 @@ namespace sqlite {
 			proxy(stmt& s, int i)
 				: s{ s }, i{ i }
 			{ }
-			proxy(const proxy&) = default;
-			proxy& operator=(const proxy&) = default;
-			~proxy() = default;
 
 			bool operator==(const proxy& p) const
 			{
