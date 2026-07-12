@@ -8,7 +8,7 @@
 
 namespace fms {
 
-	// Error string base on souce location.
+	// Error string based on souce location.
 	class error : public std::exception {
 		std::string message;
 	public:
